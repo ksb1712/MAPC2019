@@ -18,6 +18,6 @@ Possible exercises to get used to the frameworks:
 * Only create a particular number of blocks (per type).
 * Implement a more systematic exploration.
 * Search for particular dispenser types.
-* Implement a more sophisticated path planning once a dispenser is perceivable.
+* Implement a more sophisticated path planning once a dispenser is perceivable e.g. going around other entities.
 
 
