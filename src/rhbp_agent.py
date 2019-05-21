@@ -81,6 +81,10 @@ class RhbpAgent(object):
         :type msg: SimEnd
         """
         rospy.loginfo("SimEnd:" + str(msg))
+        for g in self.goals:
+            g.unregister()
+        for b in self.behaviours:
+            b.unregister()
         self._sim_started = False
 
     def _bye_callback(self, msg):
@@ -130,6 +134,9 @@ class RhbpAgent(object):
             rospy.logwarn("%s: Decision-making timeout", self._agent_name)
 
     def _initialize_behaviour_model(self):
+        """
+        This function initialises the RHBP behaviour/goal model.
+        """
 
         # Random Move/Exploration
         random_move = RandomMove(name="random_move", agent_name=self._agent_name)

@@ -12,7 +12,7 @@
          Limits of parameters which are accessible in dynamic_reconfigure are set in cfg/Manager.cfg
          -->
     <group ns="$(arg agent_name)/rhbp_manager">
-        <param name="situationBias" type="double" value="0.7" />
+        <param name="situationBias" type="double" value="1.0" />
         <param name="predecessorBias" type="double" value="1.0" />
         <param name="successorBias" type="double" value="1.0" />
         <param name="conflictorBias" type="double" value="1.0" />
