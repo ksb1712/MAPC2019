@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(mapc_rhbp_example)
+project(rhbp_workspace)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -77,7 +77,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES mapc_rhbp_example
+#  LIBRARIES rhbp_workspace
   CATKIN_DEPENDS  message_runtime
 #  DEPENDS system_lib
 )
@@ -94,19 +94,19 @@ include_directories(
 )
 
 ## Declare a cpp library
-# add_library(mapc_rhbp_example
-#   src/${PROJECT_NAME}/mapc_rhbp_example.cpp
+# add_library(rhbp_workspace
+#   src/${PROJECT_NAME}/rhbp_workspace.cpp
 # )
 
 ## Declare a cpp executable
-# add_executable(mapc_rhbp_example_node src/mapc_rhbp_example_node.cpp)
+# add_executable(rhbp_workspace_node src/rhbp_workspace_node.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(mapc_rhbp_example_node mapc_rhbp_example_generate_messages_cpp)
+# add_dependencies(rhbp_workspace_node rhbp_workspace_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(mapc_rhbp_example_node
+# target_link_libraries(rhbp_workspace_node
 #   ${catkin_LIBRARIES}
 # )
 
@@ -125,7 +125,7 @@ include_directories(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS mapc_rhbp_example mapc_rhbp_example_node
+# install(TARGETS rhbp_workspace rhbp_workspace_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -150,7 +150,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_mapc_rhbp_example.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_rhbp_workspace.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
