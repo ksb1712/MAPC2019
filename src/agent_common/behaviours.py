@@ -11,6 +11,7 @@ from agent_common.agent_utils import get_bridge_topic_prefix, pos_to_direction
 
 from agent_common.providers import PerceptionProvider
 
+import numpy as np
 
 def action_generic_simple(publisher, action_type, params=[]):
     """
@@ -70,6 +71,8 @@ class RandomMove(BehaviourBase):
 
         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
                                                    , queue_size=10)
+        
+    
 
     def do_step(self):
         random_move = ['n', 's', 'e', 'w']
