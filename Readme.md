@@ -21,6 +21,46 @@ Usage:
    roslaunch rhbp_workspace rhbp_agents_all.launch
    ```
    
+# Server setup 
+
+### For quick visualisation, it is better to have only one team in the map.
+
+1. Go to server config:
+    ```
+    cd mapc_workspace/third-party/massim/server/conf
+    ```
+    
+2. Change SampleConfig2.json:
+    
+    ```
+    "teams" : {
+        "A" : "$(teams/A.json)",
+        "B" : "$(teams/B.json)"
+    }
+    ```
+    to
+    
+    ```
+     "teams" : {
+        "A" : "$(teams/A.json)"
+        }
+    ```
+
+3. And in server/server.json change teamsPerMatch to
+    
+    ```
+    "teamsPerMatch" : 1,
+    ```
+    
+
+### To have only a single agent per team 
+    
+1. In SampleCongif2.json change the entities line to:
+    ```
+    "entities" : [{"standard" : 1}],
+    ```
+2. And comment out the laucher for agents 2 - 10 in rhbp_workspace/launch/rhbp_agents_full.launch
+
 # Contibuting
 To include your changes to the repo, create a local branch with your name 
 
