@@ -6,6 +6,8 @@ from behaviour_components.sensors import Sensor
 from mapc_ros_bridge.msg import Position
 from agent_common.agent_utils import relative_euclidean_distance
 import numpy as np
+# import matplotlib.animation as animation
+# import matplotlib.pyplot as plt
 
 class PerceptionProvider(object):
     """
@@ -24,6 +26,10 @@ class PerceptionProvider(object):
         self.blocks = []
 
         self.closest_dispenser = None
+
+        self.closest_block = None 
+
+        self.closest_block_distance_sensor = Sensor(name="closest_block_distance", initial_value=sys.maxint)
 
         self.closest_dispenser_distance_sensor = Sensor(name="closest_dispenser_distance", initial_value=sys.maxint)
 
@@ -103,9 +109,29 @@ class PerceptionProvider(object):
         self.number_of_blocks_sensor.update(newValue=len(self.blocks) > 0)
         self.number_of_blocks_sensor.sync()
 
+        
+        self._update_closest_block(blocks=self.blocks)
+
 
         # if len(self.blocks) > 0:
         #     print("Blocks: {}".format(len(self.blocks))) 
+
+    def _update_closest_block(self, blocks):
+        """
+        Update information about the closest visible block
+        :param blocks: blocks perception
+        """
+
+        self.closest_block = None
+        closest_distance = sys.maxint
+
+        for b in blocks:
+            if self.closest_block is None or closest_distance > relative_euclidean_distance(b.pos):
+                self.closest_block = b
+                closest_distance = relative_euclidean_distance(b.pos)
+
+        self.closest_block_distance_sensor.update(newValue=closest_distance)
+        self.closest_block_distance_sensor.sync()
 
 
     def _update_obstacles(self, request_action_msg):
@@ -123,23 +149,23 @@ class PerceptionProvider(object):
         
         x, y = self.local_map.shape
         if last_direction == "n":
-            if self.agent_location.y < 5:
+            if self.agent_location.y <= 5:
                 temp = [0 for i in range(y)]
                 self.local_map = np.insert(self.local_map,0,temp,axis=0)
                 self.agent_location.y += 1
         
         elif last_direction == "s":
-            if x - self.agent_location.y < 5:
+            if x - self.agent_location.y <= 5:
                 temp = [0 for i in range(y)]
                 self.local_map = np.insert(self.local_map,x,temp,axis=0)
         
         elif last_direction == "e":
-            if y - self.agent_location.x < 5:
+            if y - self.agent_location.x <= 5:
                 temp = [0 for i in range(x)]
                 self.local_map = np.insert(self.local_map,y,temp,axis=1)
 
         elif last_direction == "w":
-            if self.agent_location.x < 5:
+            if self.agent_location.x <= 5:
                 temp = [0 for i in range(x)]
                 self.local_map = np.insert(self.local_map,0,temp,axis=1)
                 self.agent_location.x += 1 
@@ -149,19 +175,25 @@ class PerceptionProvider(object):
         
         for obstacle in self.obstacles:
             # print("obstacle  x: {} y: {}".format(obstacle.pos.x,obstacle.pos.y))
-            self.local_map[obstacle.pos.y + self.agent_location.y][obstacle.pos.x + + self.agent_location.x] = 1
+            self.local_map[obstacle.pos.y + self.agent_location.y][obstacle.pos.x +  self.agent_location.x] = 1
         
         for dispenser in self.dispensers:
-            self.local_map[dispenser.pos.y + + self.agent_location.y][dispenser.pos.x + + self.agent_location.x] = 2
+            self.local_map[dispenser.pos.y +  self.agent_location.y][dispenser.pos.x +  self.agent_location.x] = 2
             # print("dispenser x: {} y: {}".format(dispenser.pos.x,dispenser.pos.y))
 
-        for block in self.blocks:
-            self.local_map[block.pos.y + + self.agent_location.y][block.pos.x + self.agent_location.x] = 3
+        # for block in self.blocks:
+        #     self.local_map[block.pos.y +  self.agent_location.y][block.pos.x + self.agent_location.x] = 3
 
         for goal in self.goals:
-            self.local_map[goal.pos.y + self.agent_location.y][goal.pos.x + self.agent_location.x] = 4
+            self.local_map[goal.pos.y + self.agent_location.y][goal.pos.x + self.agent_location.x] = 3
 
-        # self.local_map[self.agent_location.y][self.agent_location.x] = 9
+        self.local_map[self.agent_location.y][self.agent_location.x] = 5
+
+
+    
+    
+    
+    
     def map_status(self):
 
         '''
@@ -178,6 +210,9 @@ class PerceptionProvider(object):
         4 - goal
         5 - entity
         9 - agent
+
+        todo:
+        code based on dispenser type
 
         n - go up - agent.y decreases
         e - go left - agent.x increases
@@ -199,6 +234,8 @@ class PerceptionProvider(object):
         #Update map
 
         if len(last_direction) > 0:
+            self.local_map[self.agent_location.y][self.agent_location.x] = 0
+
             if last_direction == 'n':
                 self.agent_location.y -= 1
             
@@ -216,12 +253,16 @@ class PerceptionProvider(object):
         else:
             last_direction = "failed"
 
+
         
         self._update_map()
         
         
-        print("direction: {}, shape: {}".format(last_direction,self.local_map.shape))
+        print("action: {} status: {} direction: {}, shape: {}".format(self.agent.last_action, self.agent.last_action_result, last_direction,self.local_map.shape))
         print("\n")
-        print(self.local_map)
-        
+        self.local_map.dump('/ros/map.npy')
+        # print(self.local_map)
+        # M = self.local_map * 10
+        # plt.pcolor( M , cmap = 'jet' )
+        # plt.savefig('./a.png')
         print("\n\n")

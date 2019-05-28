@@ -9,7 +9,7 @@ from behaviour_components.conditions import Negation, Condition
 from behaviour_components.goals import GoalBase
 from behaviour_components.condition_elements import Effect
 
-from agent_common.behaviours import RandomMove, Dispense, MoveToDispenser
+from agent_common.behaviours import RandomMove, Dispense, MoveToDispenser, Attach
 from agent_common.providers import PerceptionProvider
 from agent_common.agent_utils import get_bridge_topic_prefix
 
@@ -161,13 +161,31 @@ class RhbpAgent(object):
             Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=+1, sensor_type=float))
 
         dispense.add_precondition(Condition(self.perception_provider.closest_dispenser_distance_sensor,
+                                            # ThresholdActivator(isMinimum=False, thresholdValue=1)))
+
+        # Attach a block if close enough
+        attach = Attach(name="attach", perception_provider=self.perception_provider, agent_name=self._agent_name)
+        self.behaviours.append(attach)
+        attach.add_effect(
+            Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=-1, sensor_type=float))
+
+        attach.add_precondition(Condition(self.perception_provider.closest_block_distance_sensor,
                                             ThresholdActivator(isMinimum=False, thresholdValue=1)))
 
-        # Our simple goal is to create more and more blocks
+        move_goal = GoalBase("exploring", permanent=True,
+                            planner_prefix=self._agent_name)
+
+        """
+        To test attach remove dispense_goal
+        """
+        # # Our simple goal is to create more and more blocks
         dispense_goal = GoalBase("dispensing", permanent=True,
-                                 conditions=[Condition(self.perception_provider.number_of_blocks_sensor, GreedyActivator())],
+                                 conditions=[Condition(self.perception_provider.number_of_blocks_sensor, 
+                                                       ThresholdActivator(isMinimum=False, thresholdValue=1))],
                                  planner_prefix=self._agent_name)
-        self.goals.append(dispense_goal)
+        
+        self.goals.append(dispense)
+        self.goals.append(move_goal)
 
 
 if __name__ == '__main__':

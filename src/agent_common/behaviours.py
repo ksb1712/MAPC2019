@@ -73,9 +73,17 @@ class RandomMove(BehaviourBase):
                                                    , queue_size=10)
         
     
+        self.count = 0
 
     def do_step(self):
-        random_move = ['n', 's', 'e', 'w']
+        # if self.count < 40:
+        #     random_move = ['e']
+        #     self.count += 1
+        # else:
+        #     random_move = ['n','e']
+        random_move = ['n','e','w','s']
+        # move = raw_input("Enter a direction: ")
+        # random_move = [move]
         params = [KeyValue(key="direction", value=random.choice(random_move))]
         rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))
         action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE, params=params)
@@ -155,3 +163,41 @@ class MoveToDispenser(BehaviourBase):
 
         else:
             rospy.logerr("Behaviour:%s: no dispenser in range", self.name)
+
+class Attach(BehaviourBase):
+    """
+    Attach a new block from the dispenser nearby
+    """
+
+    def __init__(self, name, agent_name, perception_provider, **kwargs):
+        """
+        :param name: name of the behaviour
+        :param agent_name: name of the agent for determining the correct topic prefix
+        :param perception_provider: the current perception
+        :type perception_provider: PerceptionProvider
+        :param kwargs: more optional parameter that are passed to the base class
+        """
+        super(Attach, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
+
+        self._agent_name = agent_name
+
+        self._perception_provider = perception_provider
+
+        self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
+                                                   , queue_size=10)
+
+    def do_step(self):
+
+        if self._perception_provider.closest_block:
+
+            direction = pos_to_direction(self._perception_provider.closest_block.pos)
+            # random_move = ['n', 's', 'e', 'w']
+            # direction = random.choice(random_move)
+            params = [KeyValue(key="direction", value=direction)]
+
+            rospy.logdebug(self._agent_name + "::" + self._name + " attach request " + str(params))
+            action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_ATTACH,
+                                  params=params)
+
+        else:
+            rospy.logerr("Behaviour:%s: no BLOCK in range", self.name)
