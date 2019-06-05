@@ -172,8 +172,7 @@ class RhbpAgent(object):
         attach.add_precondition(Condition(self.perception_provider.closest_block_distance_sensor,
                                             ThresholdActivator(isMinimum=False, thresholdValue=1)))
 
-        move_goal = GoalBase("exploring", permanent=True,
-                            planner_prefix=self._agent_name)
+       
 
         """
         To test attach remove dispense_goal

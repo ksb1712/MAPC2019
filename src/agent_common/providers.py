@@ -40,6 +40,8 @@ class PerceptionProvider(object):
         self.obstacle_sensor = Sensor(name="obstacle_visible",initial_value=0)
         self.number_of_blocks_sensor = Sensor(name="number_of_blocks", initial_value=0)  # TODO this is currently never updated
 
+        self.map_size_sensor = Sensor(name="map_size",initial_value=22)
+
         self.local_map = np.zeros((11,11))
 
         self.agent = []
@@ -253,6 +255,9 @@ class PerceptionProvider(object):
         else:
             last_direction = "failed"
 
+        w,h = self.local_map.shape
+        self.map_size_sensor.update(newValue=w+h)
+        self.map_size_sensor.sync()
 
         
         self._update_map()
