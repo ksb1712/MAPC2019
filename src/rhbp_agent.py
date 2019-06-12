@@ -9,9 +9,23 @@ from behaviour_components.conditions import Negation, Condition
 from behaviour_components.goals import GoalBase
 from behaviour_components.condition_elements import Effect
 
-from agent_common.behaviours import RandomMove, Dispense, MoveToDispenser, Attach
+from agent_common.behaviours import RandomMove, Dispense, MoveToDispenser, Attach, AgentControl
 from agent_common.providers import PerceptionProvider
 from agent_common.agent_utils import get_bridge_topic_prefix
+
+
+def control_player():
+    print("1. move north")
+    print("2. move south")
+    print("3. move east")
+    print("4. move west")
+    print("5. Dispense block")
+    print("6. Attach block")
+    print("7. Detach block")
+    print("8. Rotate cw")
+    print("9. Rotate ccw")
+    print("10. connect")
+    print("11. submit")
 
 
 class RhbpAgent(object):
@@ -37,6 +51,13 @@ class RhbpAgent(object):
         self.perception_provider = PerceptionProvider()
 
         self._sim_started = False
+
+
+        self.manual_player = True
+
+
+
+
 
         # subscribe to MAPC bridge core simulation topics
         rospy.Subscriber(self._agent_topic_prefix + "request_action", RequestAction, self._action_request_callback)
@@ -137,54 +158,59 @@ class RhbpAgent(object):
         """
         This function initialises the RHBP behaviour/goal model.
         """
-
+        if self.manual_player:
+            control_player()
+            control = AgentControl(name="manual_control", perception_provider=self.perception_provider,
+                                                agent_name=self._agent_name)
+            self.behaviours.append(control)
+        else:
         # Random Move/Exploration
-        random_move = RandomMove(name="random_move", agent_name=self._agent_name)
-        self.behaviours.append(random_move)
-        random_move.add_effect(Effect(self.perception_provider.dispenser_visible_sensor.name, indicator=True))
+            random_move = RandomMove(name="random_move", agent_name=self._agent_name)
+            self.behaviours.append(random_move)
+            random_move.add_effect(Effect(self.perception_provider.dispenser_visible_sensor.name, indicator=True))
 
-        # Moving to a dispenser if in vision range
-        move_to_dispenser = MoveToDispenser(name="move_to_dispense", perception_provider=self.perception_provider,
-                                            agent_name=self._agent_name)
-        self.behaviours.append(move_to_dispenser)
-        move_to_dispenser.add_effect(
-            Effect(self.perception_provider.closest_dispenser_distance_sensor.name, indicator=-1, sensor_type=float))
-        move_to_dispenser.add_precondition(
-            Condition(self.perception_provider.dispenser_visible_sensor, BooleanActivator(desiredValue=True)))
-        move_to_dispenser.add_precondition(Condition(self.perception_provider.closest_dispenser_distance_sensor,
-                                            ThresholdActivator(isMinimum=True, thresholdValue=2)))
+            # Moving to a dispenser if in vision range
+            move_to_dispenser = MoveToDispenser(name="move_to_dispense", perception_provider=self.perception_provider,
+                                                agent_name=self._agent_name)
+            self.behaviours.append(move_to_dispenser)
+            move_to_dispenser.add_effect(
+                Effect(self.perception_provider.closest_dispenser_distance_sensor.name, indicator=-1, sensor_type=float))
+            move_to_dispenser.add_precondition(
+                Condition(self.perception_provider.dispenser_visible_sensor, BooleanActivator(desiredValue=True)))
+            move_to_dispenser.add_precondition(Condition(self.perception_provider.closest_dispenser_distance_sensor,
+                                                ThresholdActivator(isMinimum=True, thresholdValue=2)))
 
-        # Dispense a block if close enough
-        dispense = Dispense(name="dispense", perception_provider=self.perception_provider, agent_name=self._agent_name)
-        self.behaviours.append(dispense)
-        dispense.add_effect(
-            Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=+1, sensor_type=float))
+            # Dispense a block if close enough
+            dispense = Dispense(name="dispense", perception_provider=self.perception_provider, agent_name=self._agent_name)
+            self.behaviours.append(dispense)
+            dispense.add_effect(
+                Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=+1, sensor_type=float))
 
-        dispense.add_precondition(Condition(self.perception_provider.closest_dispenser_distance_sensor,
-                                            # ThresholdActivator(isMinimum=False, thresholdValue=1)))
+            dispense.add_precondition(Condition(self.perception_provider.closest_dispenser_distance_sensor,
+                                                ThresholdActivator(isMinimum=False, thresholdValue=1)))
 
-        # Attach a block if close enough
-        attach = Attach(name="attach", perception_provider=self.perception_provider, agent_name=self._agent_name)
-        self.behaviours.append(attach)
-        attach.add_effect(
-            Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=-1, sensor_type=float))
+            # Attach a block if close enough
+            attach = Attach(name="attach", perception_provider=self.perception_provider, agent_name=self._agent_name)
+            self.behaviours.append(attach)
+            attach.add_effect(
+                Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=-1, sensor_type=float))
 
-        attach.add_precondition(Condition(self.perception_provider.closest_block_distance_sensor,
-                                            ThresholdActivator(isMinimum=False, thresholdValue=1)))
+            attach.add_precondition(Condition(self.perception_provider.closest_block_distance_sensor,
+                                                ThresholdActivator(isMinimum=False, thresholdValue=1)))
 
-       
-
-        """
-        To test attach remove dispense_goal
-        """
-        # # Our simple goal is to create more and more blocks
-        dispense_goal = GoalBase("dispensing", permanent=True,
-                                 conditions=[Condition(self.perception_provider.number_of_blocks_sensor, 
-                                                       ThresholdActivator(isMinimum=False, thresholdValue=1))],
-                                 planner_prefix=self._agent_name)
         
-        self.goals.append(dispense)
-        self.goals.append(move_goal)
+
+            """
+            To test attach remove dispense_goal
+            """
+            # # Our simple goal is to create more and more blocks
+            dispense_goal = GoalBase("dispensing", permanent=True,
+                                    conditions=[Condition(self.perception_provider.number_of_blocks_sensor, 
+                                                        ThresholdActivator(isMinimum=False, thresholdValue=1))],
+                                    planner_prefix=self._agent_name)
+            
+            self.goals.append(dispense)
+            # self.goals.append(move_goal)
 
 
 if __name__ == '__main__':

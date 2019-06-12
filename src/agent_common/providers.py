@@ -40,7 +40,6 @@ class PerceptionProvider(object):
         self.obstacle_sensor = Sensor(name="obstacle_visible",initial_value=0)
         self.number_of_blocks_sensor = Sensor(name="number_of_blocks", initial_value=0)  # TODO this is currently never updated
 
-        self.map_size_sensor = Sensor(name="map_size",initial_value=22)
 
         self.local_map = np.zeros((11,11))
 
@@ -255,19 +254,18 @@ class PerceptionProvider(object):
         else:
             last_direction = "failed"
 
-        w,h = self.local_map.shape
-        self.map_size_sensor.update(newValue=w+h)
-        self.map_size_sensor.sync()
+      
 
         
         self._update_map()
         
         
-        print("action: {} status: {} direction: {}, shape: {}".format(self.agent.last_action, self.agent.last_action_result, last_direction,self.local_map.shape))
-        print("\n")
+        # print("action: {} status: {} direction: {}, shape: {}".format(self.agent.last_action, self.agent.last_action_result, last_direction,self.local_map.shape))
+        # print("\n")
         self.local_map.dump('/ros/map.npy')
-        # print(self.local_map)
-        # M = self.local_map * 10
-        # plt.pcolor( M , cmap = 'jet' )
-        # plt.savefig('./a.png')
-        print("\n\n")
+        print(self.agent.last_action_result)
+        # # print(self.local_map)
+        # # M = self.local_map * 10
+        # # plt.pcolor( M , cmap = 'jet' )
+        # # plt.savefig('./a.png')
+        # print("\n\n")
