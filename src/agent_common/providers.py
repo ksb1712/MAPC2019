@@ -52,7 +52,7 @@ class PerceptionProvider(object):
         self.goal_origin = None
         self.origin_found = False
 
-        self.agent = []
+        self.agent = None
         self.agent_location = Position(self.perception_range,self.perception_range) #Agent initial agent position to center of grid (vision range 5)
 
 
@@ -65,6 +65,9 @@ class PerceptionProvider(object):
 
         self._request_action_msg = request_action_msg
 
+        self.agent = request_action_msg.agent
+
+
         self._update_dispensers(request_action_msg)
 
         self._update_blocks(request_action_msg)
@@ -73,7 +76,6 @@ class PerceptionProvider(object):
 
         self._update_obstacles(request_action_msg)  # TODO this could be more sophisticated and potentially extracted like above
 
-        self.agent = request_action_msg.agent
 
         self.map_status()
 
@@ -90,7 +92,7 @@ class PerceptionProvider(object):
                 if g.y < y_min:
                     y_min = g.y
 
-            print("Origin found at : x: {}, y: {} relative to agent_origin".format(x_min + 1,y_min + 1))
+            print("{} Origin found at : x: {}, y: {} relative to agent_origin".format(self.agent.name,x_min + 1,y_min + 1))
             
             self.goal_origin = Position(x_min + 1, y_min + 1)
 
@@ -103,7 +105,7 @@ class PerceptionProvider(object):
 
         self.goals = request_action_msg.goals
 
-        self.goal_visible_sensor.update(newValue=len(self.relative_goals) > 0)
+        self.goal_visible_sensor.update(newValue=len(self.goals) > 0)
         self.count_goal_cells.update(newValue=len(self.relative_goals))
 
         self.count_goal_cells.sync()
@@ -117,12 +119,12 @@ class PerceptionProvider(object):
         
 
         if (self.origin_found == False):
-            print("False")
+            print("{} says False".format(self.agent.name))
             if(len(self.relative_goals) >= 12):
-                print("Located")
+                print("{} says Located".format(self.agent.name))
                 self.get_goal_origin()
             else:
-                print("not yet")
+                print("{} says not yet".format(self.agent.name))
                 self._update_closest_goal_cell(goals=self.goals)
         
 
@@ -265,7 +267,9 @@ class PerceptionProvider(object):
             x_loc = goal.pos.x + self.agent_location.x
             y_loc = goal.pos.y + self.agent_location.y
             self.local_map[y_loc][x_loc] = 3
-            self.relative_goals.append(Position(x_loc,y_loc))
+            temp = Position(x_loc,y_loc)
+            if temp not in self.relative_goals:
+                self.relative_goals.append(temp)
         self.local_map[self.agent_location.y][self.agent_location.x] = 5
 
 
@@ -317,6 +321,8 @@ class PerceptionProvider(object):
 
             if last_direction == 'n':
                 self.agent_location.y -= 1
+                if(self.origin_found):
+                    self.goal_origin.y += 1
             
             elif last_direction == 's':
                 self.agent_location.y += 1
@@ -326,6 +332,8 @@ class PerceptionProvider(object):
 
             elif last_direction == 'w':
                 self.agent_location.x -= 1
+                if(self.origin_found):
+                    self.goal_origin.x += 1
             
             self.check_vision_range(last_direction)
         
@@ -340,7 +348,7 @@ class PerceptionProvider(object):
         
         # print("action: {} status: {} direction: {}, shape: {}".format(self.agent.last_action, self.agent.last_action_result, last_direction,self.local_map.shape))
         # print("\n")
-        self.local_map.dump('/ros/map.npy')
+        self.local_map.dump('/ros/map/{}_map.npy'.format(self.agent.name))
         # data = self.local_map.ravel()
         # pub = rospy.Publisher('map_a1', numpy_msg(int32[]),queue_size=10)
         # rospy.init_node('talker', anonymous=True)

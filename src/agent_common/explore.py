@@ -64,7 +64,7 @@ class Explore(BehaviourBase):
                 else:
                     check = False
         
-        print("Going " + direction)
+        # print("Going " + direction)
         
         return direction
             
@@ -86,7 +86,7 @@ class Explore(BehaviourBase):
         x , y = self.perception_provider.agent_location.x, self.perception_provider.agent_location.y
         h, w = local_map.shape
         
-        print("In explore")
+        # print("In explore")
         direction = self.get_direction(x,y,h,w,perception_range,prev_param)
         params = [KeyValue(key="direction", value=direction)]
         rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))

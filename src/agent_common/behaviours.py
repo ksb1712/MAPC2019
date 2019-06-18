@@ -153,13 +153,13 @@ class Explore(BehaviourBase):
         if(abs((y - 1)) < min_val):
             min_val = abs((y - 1))
             direction = 'n'
-        if(abs(h - (y + 1)) < min_val):
+        if(abs(h - 1 - (y + 1)) < min_val):
             min_val = abs(h - (y + 1))
             direction = 's'
         if(abs((x - 1)) < min_val):
             min_val = abs((x - 1))
             direction = 'w'
-        if(abs(w - (x + 1)) < min_val):
+        if(abs(w -1 - (x + 1)) < min_val):
             min_val = abs(w - (x + 1))
             direction = 'e'
         
@@ -171,7 +171,7 @@ class Explore(BehaviourBase):
                 else:
                     check = False
         
-        print("Going " + direction)
+        print("{} Going {}".format(self.perception_provider.agent.name, direction))
         
         return direction
             
@@ -197,10 +197,10 @@ class Explore(BehaviourBase):
         x , y = self.perception_provider.agent_location.x, self.perception_provider.agent_location.y
         h, w = local_map.shape
         
-        print("In explore")
+        # print("In explore")
         if len(self.perception_provider.relative_goals) < 12:
             if self.perception_provider.closest_goal:
-                print("Found goal")
+                print("{} Found goal".format(self.perception_provider.agent.name))
                 direction = pos_to_direction(self.perception_provider.closest_goal.pos)
 
             else:
