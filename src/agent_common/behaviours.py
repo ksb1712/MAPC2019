@@ -13,6 +13,7 @@ from agent_common.agent_utils import get_bridge_topic_prefix, pos_to_direction
 from agent_common.providers import PerceptionProvider
 
 import numpy as np
+import math
 import agent_common.astar
 
 def action_generic_simple(publisher, action_type, params=[]):
@@ -118,7 +119,100 @@ class AgentControl(BehaviourBase):
         time.sleep(0.2)
         sys.stdin.flush()        
 
+class Explore(BehaviourBase):
+    """
+    Independent exploration behaviour 
+    Objective: to find 12 goal cells
+    exploration behaviour: in direction of least overlap of perception provider
+    """
+    def __init__(self, name, agent_name, perception_provider, **kwargs):
+        """
+        :param name: name of the behaviour
+        :param agent_name: name of the agent for determining the correct topic prefix
+        :param perception_provider: the current perception
+        :type perception_provider: PerceptionProvider
+        :param kwargs: more optional parameter that are passed to the base class
+        """
+        super(Explore, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
+        # print("Explore behaviour _1")
+        self._agent_name = agent_name
+
+        self.perception_provider = perception_provider
+
+        self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
+                                                   , queue_size=10)
+        self.prev_param = []
+
+
+    def get_direction(self, x,y,h,w,p_range,prev_param=[]):
+        min_val= p_range
+        random_move = ['n','e','w','s']
+
+        direction = random.choice(random_move)
+
+        if(abs((y - 1)) < min_val):
+            min_val = abs((y - 1))
+            direction = 'n'
+        if(abs(h - (y + 1)) < min_val):
+            min_val = abs(h - (y + 1))
+            direction = 's'
+        if(abs((x - 1)) < min_val):
+            min_val = abs((x - 1))
+            direction = 'w'
+        if(abs(w - (x + 1)) < min_val):
+            min_val = abs(w - (x + 1))
+            direction = 'e'
         
+        if len(prev_param) > 0:
+            check = True
+            while check:
+                if(direction in prev_param):
+                    direction = random.choice(random_move)
+                else:
+                    check = False
+        
+        print("Going " + direction)
+        
+        return direction
+            
+
+            
+
+    def do_step(self):
+        
+
+        if (self.perception_provider.agent.last_action == "move" and 
+            self.perception_provider.agent.last_action_result != "success"):
+            temp = self.perception_provider.agent.last_action_params[0]
+            if temp not in self.prev_param:
+                self.prev_param.append(temp)
+            if len(self.prev_param) > 3:
+                self.prev_param.pop(0)
+        
+        """
+        find direction with least overlap
+        """
+        local_map = self.perception_provider.local_map
+        perception_range = self.perception_provider.perception_range
+        x , y = self.perception_provider.agent_location.x, self.perception_provider.agent_location.y
+        h, w = local_map.shape
+        
+        print("In explore")
+        if len(self.perception_provider.relative_goals) < 12:
+            if self.perception_provider.closest_goal:
+                print("Found goal")
+                direction = pos_to_direction(self.perception_provider.closest_goal.pos)
+
+            else:
+                direction = self.get_direction(x,y,h,w,perception_range,self.prev_param)
+        else:
+                direction = self.get_direction(x,y,h,w,perception_range,self.prev_param)
+
+        params = [KeyValue(key="direction", value=direction)]
+        rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))
+        action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE, params=params)
+
+
 
 
         
