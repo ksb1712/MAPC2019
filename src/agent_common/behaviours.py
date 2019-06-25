@@ -7,6 +7,7 @@ from behaviour_components.behaviours import BehaviourBase
 
 from diagnostic_msgs.msg import KeyValue
 from mapc_ros_bridge.msg import GenericAction
+from mapc_ros_bridge.msg import Position
 
 from agent_common.agent_utils import get_bridge_topic_prefix, pos_to_direction
 
@@ -14,7 +15,7 @@ from agent_common.providers import PerceptionProvider
 
 import numpy as np
 import math
-import agent_common.astar
+import agent_common.astar as astar
 
 def action_generic_simple(publisher, action_type, params=[]):
     """
@@ -119,6 +120,165 @@ class AgentControl(BehaviourBase):
         time.sleep(0.2)
         sys.stdin.flush()        
 
+class Explore_better(BehaviourBase):
+
+    """
+    Independent exploration behaviour 
+    Objective: to find 12 goal cells
+    exploration behaviour: 
+
+    start : random move
+    if obstacles: 
+
+    """
+    def __init__(self, name, agent_name, perception_provider, **kwargs):
+        """
+        :param name: name of the behaviour
+        :param agent_name: name of the agent for determining the correct topic prefix
+        :param perception_provider: the current perception
+        :type perception_provider: PerceptionProvider
+        :param kwargs: more optional parameter that are passed to the base class
+        """
+        super(Explore, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
+        # print("Explore behaviour _1")
+        self._agent_name = agent_name
+
+        self.perception_provider = perception_provider
+
+        self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
+                                                   , queue_size=10)
+        self.prev_param = []
+
+        self.direction_dict = {0: 'w',1: 'e', 2: 'n', 3: 's'}
+        self.opp_direction_dict = {0: 'e', 1:'w',2:'s',3: 'n'}
+
+        self.const_direction = direction_dict[random.randint(0,3)]
+
+        # self.have_path = False
+        # self.reached_loc = False
+
+        self.path = []
+
+    def mh_distance(a,b):
+        x_dist = abs(a.x - b.x)
+        y_dist = abs(a.y - b.y)
+
+        return x_dist + y_dist
+
+    def get_astar_path(agent_map,start,dest):
+        
+        grid_height, grid_width = agent_map.shape
+
+        #Get location of obstacles
+        obs_Y, obs_X = np.where(agent_map==1)
+        
+        #Make tuples
+        obs_cood = []
+        for i in range(len(obs_X)):
+            obs_cood.append((obs_X[i],obs_Y[i]))
+        
+        obs_cood = tuple(obs_cood)
+
+        grid = astar.AStar(grid_height,grid_width)
+        grid.init_grid(obs_cood,(start.x,start.y),(dest.x,dest.y))
+        self.path = grid.get_path()
+    
+
+    def get_path_unknown(agent_map,agent_location,un_exp):
+
+        min_distance = 1000
+        target_location = Position(agent_x,agent_y)
+        
+        #Find closest unexplored location
+
+        for i in range(len(un_exp[0])):
+            dist = mh_distance(agent_location,Position(un_exp[1][i],un_exp[0][i]))
+            if( dist < min_distance):
+                min_distance = dist
+                target_location.x = un_exp[1][i]
+                target_location.y = un_exp[0][i]
+
+        # Get path from astar
+        get_astar_path(agent_map,agent_location,target_location)
+        
+    def get_inverse_distance_sum(_map,agent_location):
+
+        obs_Y, obs_X = np.where(_map == 1)
+        if len(obs_Y) > 0:
+            _sum = 0.0
+            for i in range(len(obs_Y)):
+                dist = mh_distance(agent_location,Position(obs_X[i],obs_Y[i]))
+                _sum += 1./dist
+            
+            return _sum
+        else:
+            return 0
+
+
+
+    def do_step(self):
+
+        agent_map = self.perception_provider.local_map
+        agent_location = self.perception_provider.agent_location
+        direction = const_direction
+        path_available = True
+
+        if (self.perception_provider.agent.last_action == "move" and 
+            self.perception_provider.agent.last_action_result == "failed_path"):
+            path_available = False
+            print("Path planning failed")
+            self.path = []
+        
+
+        if len(self.path) > 0:
+            direction = self.path.pop(0)
+            
+        else:
+
+            goal_location = np.where(agent_map == 3)
+            if len(goal_location[0]) > 0 and len(self.perception_provider.relative_goals) < 12 :
+                target_goal = Position(goal_location[1][-1],goal_location[0][-1])
+                get_astar_path(agent_map,agent_location,target_goal)
+
+            else:
+            #Check if unexplored available
+                un_exp = np.where(agent_map == -1)
+                obs = np.where(agent_map == 1)
+                if len(un_exp[0]) > 0:
+                    get_path_unknown(agent_map,agent_location,un_exp)
+                    if len(self.path) > 0:
+                        direction = self.path.pop(0)
+            
+            # #Obstacle based repulsion
+            # elif len(obs[0]) > 0:
+            #     left = agent_map[:,:agent_location.x - 1]
+            #     right = agent_map[:,agent_location.x + 1]
+            #     up = agent_map[:agent_location.y - 1,:]
+            #     down = agent_map[agent_location.y + 1:,:]
+
+            #     dist_list = []
+            #     dist_list.append(get_inverse_distance_sum(left,agent_location))
+            #     dist_list.append(get_inverse_distance_sum(right,agent_location))
+            #     dist_list.append(get_inverse_distance_sum(up,agent_location))
+            #     dist_list.append(get_inverse_distance_sum(down,agent_location))
+
+            #     max_dist = max(dist_list)
+            #     max_index = dist_list.index(max(dist_list)) #Get max of sum of inverse mh dist
+
+            #     if max_dist >= 1:
+            #         direction = self.opp_direction_dict[max_index]
+
+            #     else:
+            #         direction = self.direction_dict[max_index]  
+        
+        
+        params = [KeyValue(key="direction", value=direction)]
+        rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))
+        action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE, params=params)
+     
+
+
+
 class Explore(BehaviourBase):
     """
     Independent exploration behaviour 
@@ -142,6 +302,8 @@ class Explore(BehaviourBase):
         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
                                                    , queue_size=10)
         self.prev_param = []
+
+        self.direction_dict = {0: 'n',1: 's', 2: 'w', 3: 'e'}
 
 
     def get_direction(self, x,y,h,w,p_range,prev_param=[]):

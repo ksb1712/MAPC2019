@@ -7,6 +7,7 @@ from mapc_ros_bridge.msg import Position
 from agent_common.agent_utils import relative_euclidean_distance
 import numpy as np
 from std_msgs.msg import String
+import itertools
 # import matplotlib.animation as animation
 # import matplotlib.pyplot as plt
 
@@ -47,7 +48,7 @@ class PerceptionProvider(object):
         self.count_goal_cells = Sensor(name="count_goal_cells",initial_value=0)
         self.closest_goal_distance_sensor = Sensor(name="closest_goal_distance_sensor",initial_value=sys.maxint)
         
-        self.local_map = np.zeros((self.perception_range*2 + 1,self.perception_range*2 + 1))
+        self.local_map = np.ones((self.perception_range*2 + 1,self.perception_range*2 + 1)) * -1
 
         self.goal_origin = None
         self.origin_found = False
@@ -225,33 +226,52 @@ class PerceptionProvider(object):
         self.obstacle_sensor.sync()
 
     def check_vision_range(self,last_direction):
-        
+
+        #TODO set insert values to -1
+        #Set all cell in current 5 x 5 to 0
+        # Update map then
+
+
         x, y = self.local_map.shape
         if last_direction == "n":
-            if self.agent_location.y <= 5:
-                temp = [0 for i in range(y)]
+            if self.agent_location.y <= self.perception_range:
+                temp = [-1 for i in range(y)]
                 self.local_map = np.insert(self.local_map,0,temp,axis=0)
                 self.agent_location.y += 1
         
         elif last_direction == "s":
-            if x - self.agent_location.y <= 5:
-                temp = [0 for i in range(y)]
+            if x - self.agent_location.y <= self.perception_range:
+                temp = [-1 for i in range(y)]
                 self.local_map = np.insert(self.local_map,x,temp,axis=0)
         
         elif last_direction == "e":
-            if y - self.agent_location.x <= 5:
-                temp = [0 for i in range(x)]
+            if y - self.agent_location.x <= self.perception_range:
+                temp = [-1 for i in range(x)]
                 self.local_map = np.insert(self.local_map,y,temp,axis=1)
 
         elif last_direction == "w":
-            if self.agent_location.x <= 5:
-                temp = [0 for i in range(x)]
+            if self.agent_location.x <= self.perception_range:
+                temp = [-1 for i in range(x)]
                 self.local_map = np.insert(self.local_map,0,temp,axis=1)
                 self.agent_location.x += 1 
 
 
     def _update_map(self):
         
+
+        
+        x_min = max(self.agent_location.x - self.perception_range,0)
+        y_min = max(self.agent_location.y - self.perception_range,0)
+
+        x_max = x_min + self.perception_range * 2
+        y_max = y_min + self.perception_range * 2
+       
+       #Assume all cells in 5 x 5 perception range as free
+        for i,j in itertools.product(range(y_min,y_max),range(x_min,x_max)):
+            if(abs(self.agent_location.y - i) + abs(self.agent_location.x -j) <= self.perception_range):
+                self.local_map[i][j] = 0
+        
+
         for obstacle in self.obstacles:
             # print("obstacle  x: {} y: {}".format(obstacle.pos.x,obstacle.pos.y))
             self.local_map[obstacle.pos.y + self.agent_location.y][obstacle.pos.x +  self.agent_location.x] = 1
@@ -270,10 +290,19 @@ class PerceptionProvider(object):
             temp = Position(x_loc,y_loc)
             if temp not in self.relative_goals:
                 self.relative_goals.append(temp)
-        self.local_map[self.agent_location.y][self.agent_location.x] = 5
+        self.local_map[self.agent_location.y][self.agent_location.x] = 4
+
+
+    #TODO
+    #Use -1 in map for nav
+    #Use obstacles for nav
+    #Call astar for nav
+    #Once goals discovered include other behaviours
+
 
 
     
+
     
     
     
@@ -286,13 +315,14 @@ class PerceptionProvider(object):
         x positive - right   (x of agent is y of map)
         y positive - up
 
+        -1 - unknown
         0 - empty
         1 - obstacle
         2 - dispenser
-        3 - block
-        4 - goal
-        5 - entity
-        9 - agent
+        # 3 - block
+        3 - goal
+        # 5 - entity
+        4 - agent
 
         todo:
         code based on dispenser type

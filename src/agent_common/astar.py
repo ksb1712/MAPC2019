@@ -111,7 +111,7 @@ class AStar(object):
         while cell is not self.start:
             path.append(self.get_direction(cell.parent,cell))
             cell = cell.parent
-            print 'path: cell: %d,%d' % (cell.x, cell.y)
+            # print 'path: cell: %d,%d' % (cell.x, cell.y)
             # path.append(self.get_direction(parent,cell))
         path.reverse()
         return path
