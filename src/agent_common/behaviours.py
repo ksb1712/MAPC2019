@@ -184,6 +184,25 @@ class Explore_better(BehaviourBase):
         self.path = grid.get_path()
     
 
+    def check_obstacle_closeness(agent_map,dest):
+
+        if dest.x + 1 < agent_map.shape[1]:
+            if agent_map[dest.y][dest.x + 1] == 3:
+                return True
+        if dest.x - 1 > 0:
+            if agent_map[dest.y][dest.x - 1] == 3:
+                return True
+        if dest.y + 1 < agent_map.shape[0]:
+            if agent_map[dest.y + 1][dest.x] == 3:
+                return True
+        
+        if dest.y - 1 > 0:
+            if agent_map[dest.y - 1][dest.x] == 3:
+                return True
+
+        return False
+      
+
     def get_path_unknown(agent_map,agent_location,un_exp):
 
         min_distance = 1000
@@ -192,11 +211,11 @@ class Explore_better(BehaviourBase):
         #Find closest unexplored location
 
         for i in range(len(un_exp[0])):
-            dist = mh_distance(agent_location,Position(un_exp[1][i],un_exp[0][i]))
-            if( dist < min_distance):
+            temp = Position(un_exp[1][i],un_exp[0][i])
+            dist = mh_distance(agent_location,temp)
+            if( dist < min_distance and check_obstacle_closeness(agent_map,temp) == False):
                 min_distance = dist
-                target_location.x = un_exp[1][i]
-                target_location.y = un_exp[0][i]
+                target_location = temp
 
         # Get path from astar
         get_astar_path(agent_map,agent_location,target_location)
