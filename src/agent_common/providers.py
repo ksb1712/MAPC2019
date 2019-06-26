@@ -28,6 +28,7 @@ class PerceptionProvider(object):
         self.obstacles = []
 
         self.blocks = []
+    
 
         self.closest_dispenser = None
 
@@ -40,7 +41,8 @@ class PerceptionProvider(object):
 
         self.closest_dispenser_distance_sensor = Sensor(name="closest_dispenser_distance", initial_value=sys.maxint)
         self.dispenser_visible_sensor = Sensor(name="dispenser_visible", initial_value=False)
-       
+        self.dispenser_found = False
+
         self.obstacle_sensor = Sensor(name="obstacle_visible",initial_value=0)
 
         self.closest_goal = None
@@ -155,8 +157,9 @@ class PerceptionProvider(object):
 
         self.dispensers = request_action_msg.dispensers
         
-
-        self.dispenser_visible_sensor.update(newValue=len(self.dispensers) > 0)
+        if len(self.dispensers) > 0:
+            self.dispenser_found = True
+        self.dispenser_visible_sensor.update(newValue=self.dispenser_found)
         self.dispenser_visible_sensor.sync()
 
         self._update_closest_dispenser(dispensers=self.dispensers)

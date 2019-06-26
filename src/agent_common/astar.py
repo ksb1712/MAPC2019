@@ -108,6 +108,7 @@ class AStar(object):
     def return_path(self):
         cell = self.end
         path = []
+        cell = cell.parent
         while cell is not self.start:
             path.append(self.get_direction(cell.parent,cell))
             cell = cell.parent

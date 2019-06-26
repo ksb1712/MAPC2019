@@ -10,7 +10,7 @@ from behaviour_components.goals import GoalBase
 from behaviour_components.condition_elements import Effect
 
 from agent_common.behaviours import RandomMove, Dispense, MoveToDispenser, Attach, AgentControl
-from agent_common.behaviours import Explore
+from agent_common.behaviours import Explore, Explore_better
 from agent_common.providers import PerceptionProvider
 from agent_common.agent_utils import get_bridge_topic_prefix
 
@@ -166,12 +166,56 @@ class RhbpAgent(object):
             self.behaviours.append(control)
         else:
             # Exploration targeted at locating goal
-            explorer = Explore(name="explore", perception_provider=self.perception_provider, agent_name=self._agent_name)
+            explorer = Explore_better(name="explore", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=1)
             self.behaviours.append(explorer)
             explorer.add_effect(
                 Effect(self.perception_provider.count_goal_cells.name, indicator=+1, sensor_type=float))
 
+            reach_dispenser = MoveToDispenser(name="reach_dispenser", perception_provider=self.perception_provider,
+                                                agent_name=self._agent_name,priority=2)
+            self.behaviours.append(reach_dispenser)
             
+            reach_dispenser.add_effect(
+                            Effect(self.perception_provider.closest_dispenser_distance_sensor.name, indicator=-1, sensor_type=float))
+            reach_dispenser.add_precondition(
+            Condition(self.perception_provider.dispenser_visible_sensor, BooleanActivator(desiredValue=True)))
+
+            reach_dispenser.add_precondition(
+                 Condition(self.perception_provider.count_goal_cells,
+                                            ThresholdActivator(isMinimum=True, thresholdValue=12)))
+        
+        
+            dispense = Dispense(name="dispense", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=3)
+            self.behaviours.append(dispense)
+            dispense.add_effect(
+                Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=+1, sensor_type=float))
+
+            dispense.add_precondition(Condition(self.perception_provider.closest_dispenser_distance_sensor,
+                                                ThresholdActivator(isMinimum=False, thresholdValue=1)))
+
+                # Attach a block if close enough
+            attach = Attach(name="attach", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=4)
+            self.behaviours.append(attach)
+            attach.add_effect(
+                Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=+1, sensor_type=float))
+
+            attach.add_precondition(Condition(self.perception_provider.closest_block_distance_sensor,
+                                                ThresholdActivator(isMinimum=False, thresholdValue=1)))
+
+            # explorer_2 = Explore(name="explore_2", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=5)
+            # self.behaviours.append(explorer)
+            # explorer.add_effect(
+            #     Effect(self.perception_provider.count_goal_cells.name, indicator=+1, sensor_type=float))
+            
+
+
+            # Our simple goal is to create more and more blocks
+            # dispense_goal = GoalBase("dispensing", permanent=True,
+            #                         conditions=[Condition(self.perception_provider.number_of_blocks_sensor, GreedyActivator())],
+            #                         planner_prefix=self._agent_name)
+            # self.goals.append(dispense_goal)
+
+
 if __name__ == '__main__':
     try:
         rhbp_agent = RhbpAgent()

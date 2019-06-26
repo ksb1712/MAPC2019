@@ -139,7 +139,7 @@ class Explore_better(BehaviourBase):
         :type perception_provider: PerceptionProvider
         :param kwargs: more optional parameter that are passed to the base class
         """
-        super(Explore, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
+        super(Explore_better, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
         # print("Explore behaviour _1")
         self._agent_name = agent_name
 
@@ -148,34 +148,39 @@ class Explore_better(BehaviourBase):
         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
                                                    , queue_size=10)
         self.prev_param = []
-
         self.direction_dict = {0: 'w',1: 'e', 2: 'n', 3: 's'}
         self.opp_direction_dict = {0: 'e', 1:'w',2:'s',3: 'n'}
 
-        self.const_direction = direction_dict[random.randint(0,3)]
+        self.const_direction = self.direction_dict[random.randint(0,3)]
 
+        self.goal_path = False
         # self.have_path = False
         # self.reached_loc = False
 
         self.path = []
 
-    def mh_distance(a,b):
+    def mh_distance(self,a,b):
         x_dist = abs(a.x - b.x)
         y_dist = abs(a.y - b.y)
 
         return x_dist + y_dist
 
-    def get_astar_path(agent_map,start,dest):
+    def get_astar_path(self,agent_map,start,dest):
         
         grid_height, grid_width = agent_map.shape
 
         #Get location of obstacles
-        obs_Y, obs_X = np.where(agent_map==1)
         
+        x1 = agent_map ==1
+
+        obs_Y, obs_X = np.where(x1)
+        
+
         #Make tuples
         obs_cood = []
         for i in range(len(obs_X)):
             obs_cood.append((obs_X[i],obs_Y[i]))
+
         
         obs_cood = tuple(obs_cood)
 
@@ -184,49 +189,50 @@ class Explore_better(BehaviourBase):
         self.path = grid.get_path()
     
 
-    def check_obstacle_closeness(agent_map,dest):
-
-        if dest.x + 1 < agent_map.shape[1]:
-            if agent_map[dest.y][dest.x + 1] == 3:
+    def check_obstacle_closeness(self,agent_map,dest):
+        
+        range_ = 5
+        if dest.x + range_ < agent_map.shape[1]:
+            if agent_map[dest.y][dest.x + range_] == 3:
                 return True
-        if dest.x - 1 > 0:
-            if agent_map[dest.y][dest.x - 1] == 3:
+        if dest.x - range_ > 0:
+            if agent_map[dest.y][dest.x - range_] == 3:
                 return True
-        if dest.y + 1 < agent_map.shape[0]:
-            if agent_map[dest.y + 1][dest.x] == 3:
+        if dest.y + range_ < agent_map.shape[0]:
+            if agent_map[dest.y + range_][dest.x] == 3:
                 return True
         
-        if dest.y - 1 > 0:
-            if agent_map[dest.y - 1][dest.x] == 3:
+        if dest.y - range_ > 0:
+            if agent_map[dest.y - range_][dest.x] == 3:
                 return True
 
         return False
       
 
-    def get_path_unknown(agent_map,agent_location,un_exp):
+    def get_path_unknown(self,agent_map,agent_location,un_exp):
 
         min_distance = 1000
-        target_location = Position(agent_x,agent_y)
+        target_location = Position(agent_location.x,agent_location.y)
         
         #Find closest unexplored location
 
         for i in range(len(un_exp[0])):
             temp = Position(un_exp[1][i],un_exp[0][i])
-            dist = mh_distance(agent_location,temp)
-            if( dist < min_distance and check_obstacle_closeness(agent_map,temp) == False):
+            dist = self.mh_distance(agent_location,temp)
+            if( dist < min_distance and self.check_obstacle_closeness(agent_map,temp) == False):
                 min_distance = dist
                 target_location = temp
 
         # Get path from astar
-        get_astar_path(agent_map,agent_location,target_location)
+        self.get_astar_path(agent_map,agent_location,target_location)
         
-    def get_inverse_distance_sum(_map,agent_location):
+    def get_inverse_distance_sum(self,_map,agent_location):
 
         obs_Y, obs_X = np.where(_map == 1)
         if len(obs_Y) > 0:
             _sum = 0.0
             for i in range(len(obs_Y)):
-                dist = mh_distance(agent_location,Position(obs_X[i],obs_Y[i]))
+                dist = self.mh_distance(agent_location,Position(obs_X[i],obs_Y[i]))
                 _sum += 1./dist
             
             return _sum
@@ -237,11 +243,18 @@ class Explore_better(BehaviourBase):
 
     def do_step(self):
 
+        print("Explore called ")
+
+        print("dispenser visible: {}".format(self.perception_provider.dispenser_visible_sensor._value))
+        print("#goal cells: {}".format(self.perception_provider.count_goal_cells._value))
+        print("#blocks: {}".format(self.perception_provider.closest_block_distance_sensor._value))
+
         agent_map = self.perception_provider.local_map
         agent_location = self.perception_provider.agent_location
-        direction = const_direction
-        path_available = True
-
+        # direction = self.const_direction
+        # goal_path = False
+        random_move = ['n','e','w','s']
+        direction = random.choice(random_move)
         if (self.perception_provider.agent.last_action == "move" and 
             self.perception_provider.agent.last_action_result == "failed_path"):
             path_available = False
@@ -249,7 +262,7 @@ class Explore_better(BehaviourBase):
             self.path = []
         
 
-        if len(self.path) > 0:
+        if len(self.path) > 0 and self.goal_path:
             direction = self.path.pop(0)
             
         else:
@@ -257,14 +270,18 @@ class Explore_better(BehaviourBase):
             goal_location = np.where(agent_map == 3)
             if len(goal_location[0]) > 0 and len(self.perception_provider.relative_goals) < 12 :
                 target_goal = Position(goal_location[1][-1],goal_location[0][-1])
-                get_astar_path(agent_map,agent_location,target_goal)
+                self.goal_path = True
+                self.get_astar_path(agent_map,agent_location,target_goal)
+            
+            elif len(self.path) > 0:
+                direction = self.path.pop(0)
 
             else:
             #Check if unexplored available
                 un_exp = np.where(agent_map == -1)
                 obs = np.where(agent_map == 1)
                 if len(un_exp[0]) > 0:
-                    get_path_unknown(agent_map,agent_location,un_exp)
+                    self.get_path_unknown(agent_map,agent_location,un_exp)
                     if len(self.path) > 0:
                         direction = self.path.pop(0)
             
@@ -321,7 +338,7 @@ class Explore(BehaviourBase):
         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
                                                    , queue_size=10)
         self.prev_param = []
-
+        print("Explore called")
         self.direction_dict = {0: 'n',1: 's', 2: 'w', 3: 'e'}
 
 
@@ -450,7 +467,6 @@ class Dispense(BehaviourBase):
         super(Dispense, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
 
         self._agent_name = agent_name
-
         self._perception_provider = perception_provider
 
         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
@@ -459,6 +475,8 @@ class Dispense(BehaviourBase):
     def do_step(self):
 
         if self._perception_provider.closest_dispenser:
+            
+            print("Dispense called")
 
             direction = pos_to_direction(self._perception_provider.closest_dispenser.pos)
             # random_move = ['n', 's', 'e', 'w']
@@ -477,7 +495,6 @@ class MoveToDispenser(BehaviourBase):
     """
     Move to closest dispenser nearby
     """
-
     def __init__(self, name, agent_name, perception_provider, **kwargs):
         """
         :param name: name of the behaviour
@@ -487,96 +504,68 @@ class MoveToDispenser(BehaviourBase):
         :param kwargs: more optional parameter that are passed to the base class
         """
         super(MoveToDispenser, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
-
+        # print("Explore behaviour _1")
         self._agent_name = agent_name
 
-        self._perception_provider = perception_provider
+        print("Reach dispenser called")
+        self.perception_provider = perception_provider
 
         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
                                                    , queue_size=10)
 
+        # self.local_map = self.perception_provider.local_map
+        self.path_exits = False
+        self.path = []
+
+    def get_astar_path(self,agent_map,start,dest):
+        
+        grid_height, grid_width = agent_map.shape
+
+        #Get location of obstacles
+        obs_Y, obs_X = np.where(agent_map==1)
+        
+        #Make tuples
+        obs_cood = []
+        for i in range(len(obs_X)):
+            obs_cood.append((obs_X[i],obs_Y[i]))
+        
+        obs_cood = tuple(obs_cood)
+
+        grid = astar.AStar(grid_height,grid_width)
+        grid.init_grid(obs_cood,(start.x,start.y),(dest.x,dest.y))
+        self.path = grid.get_path()
+        # print(path)
+    
     def do_step(self):
 
-        if self._perception_provider.closest_dispenser:
-
-            direction = pos_to_direction(self._perception_provider.closest_dispenser.pos)
-
-            params = [KeyValue(key="direction", value=direction)]
-            rospy.logdebug(self._agent_name + "::" + self._name + " request dispense " + str(params))
-            action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE,
-                                  params=params)
-
-        else:
-            rospy.logerr("Behaviour:%s: no dispenser in range", self.name)
-
-
-# class Plan_Path(BehaviourBase):
-#     """
-#     Behaviour to decide which agent should do
-#     which part of task. Uses AStar path planner
-#     """
-
-#     def __init__(self, name, agent_name, perception_provider):
-#          """
-#         :param name: name of the behaviour
-#         :param agent_name: name of the agent for determining the correct topic prefix
-#         :param perception_provider: the current perception
-#         :type perception_provider: PerceptionProvider
-#         :param kwargs: more optional parameter that are passed to the base class
-#         """
-#         super(Attach, self).__init__(name=name, requires_execution_steps=True, planner_prefix=agent_name, **kwargs)
-
-#         self._agent_name = agent_name
-
-#         self._perception_provider = perception_provider
-
-#         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
-#                                                    , queue_size=10)
-
-#          #Get map
-#         agent_map = self._perception_provider.local_map
-#         grid_height, grid_width = agent_map.shape
-
-#         #Get location of obstacles
-#         obs_Y, obs_X = np.where(agent_map==1)
+        print("move to dispenser")
         
-#         #Make tuples
-#         obs_cood = []
-#         for i in range(len(obs_X)):
-#             obs_cood.append((obs_Y[i],obs_X[i]))
+        direction = 'n'
+
         
-#         obs_cood = tuple(obs_cood)
+        if self.path_exits == False:
+            self.local_map = self.perception_provider.local_map
+            dispenser = np.where(self.local_map == 2)
+            if len(dispenser[0]) > 0:
+                target = Position(dispenser[1][0],dispenser[0][0])
+                agent_location = self.perception_provider.agent_location
+                self.get_astar_path(self.local_map,agent_location,target)
+                if len(self.path) > 0:
+                    direction = self.path.pop(0)
+                self.path_exits = True
 
-#         #Get current location
-#         cur_location = (self._perception_provider.agent_location.x,self._perception_provider.agent_location.y)
+        elif len(self.path) > 0:
+                direction = self.path.pop(0)
 
-#         #Get first goal cell location
-#         goal_list = self._perception_provider.goals
-#         goal_location = (goal_list[0].x,goal_list[0].y)
+                
+          
+        params = [KeyValue(key="direction", value=direction)]
+        rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))
+        action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE, params=params)
 
-#         #Initialize AStar
 
-#         grid = astar.AStar(grid_height,grid_width)
-#         grid.init_grid(obs_cood,cur_location,goal_location)
-#         self.path = grid.get_path()
 
-#         self.path_index = 0
 
-#     def do_step(self):
-#         if(self.path_index < len(self.path)):
-#             direction = self.path[self.path_index]
-#             self.path_index += 1
-
-#             params = [KeyValue(key="direction", value=direction)]
-#             rospy.logdebug(self._agent_name + "::" + self._name + " request dispense " + str(params))
-#             action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE,
-#                                   params=params)
-
-#         else:
-#             rospy.logerr("Path planning completed for {}".format(self.agent_name))
-
-            
-       
 
 
 
