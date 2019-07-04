@@ -5,7 +5,7 @@ from mapc_ros_bridge.msg import RequestAction, GenericAction, SimStart, SimEnd, 
 
 from behaviour_components.managers import Manager
 from behaviour_components.activators import BooleanActivator, ThresholdActivator, EqualActivator, GreedyActivator
-from behaviour_components.conditions import Negation, Condition
+from behaviour_components.conditions import Negation, Condition, Conjunction
 from behaviour_components.goals import GoalBase
 from behaviour_components.condition_elements import Effect
 
@@ -171,36 +171,50 @@ class RhbpAgent(object):
             explorer.add_effect(
                 Effect(self.perception_provider.count_goal_cells.name, indicator=+1, sensor_type=float))
 
+
+            #Reach dispenser once origin has been obtained
             reach_dispenser = MoveToDispenser(name="reach_dispenser", perception_provider=self.perception_provider,
                                                 agent_name=self._agent_name,priority=2)
             self.behaviours.append(reach_dispenser)
             
             reach_dispenser.add_effect(
                             Effect(self.perception_provider.closest_dispenser_distance_sensor.name, indicator=-1, sensor_type=float))
-            reach_dispenser.add_precondition(
-            Condition(self.perception_provider.dispenser_visible_sensor, BooleanActivator(desiredValue=True)))
-
-            reach_dispenser.add_precondition(
-                 Condition(self.perception_provider.count_goal_cells,
-                                            ThresholdActivator(isMinimum=True, thresholdValue=12)))
+            
+            pre_cond1 = Condition(self.perception_provider.count_goal_cells,
+                                  ThresholdActivator(isMinimum=True, thresholdValue=12))
+            pre_cond2 = Condition(self.perception_provider.dispenser_visible_sensor, 
+                                  BooleanActivator(desiredValue=True))
+            reach_dispenser.add_precondition(Conjunction(pre_cond1,pre_cond2))
+          
         
-        
-            dispense = Dispense(name="dispense", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=3)
+            #Dispense from dispenser if near
+            dispense = Dispense(name="dispense", perception_provider=self.perception_provider, 
+                                agent_name=self._agent_name,priority=3)
             self.behaviours.append(dispense)
             dispense.add_effect(
-                Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=+1, sensor_type=float))
+                Effect(self.perception_provider.sensor_dispensed_blocks.name, indicator=+1, sensor_type=float))
 
-            dispense.add_precondition(Condition(self.perception_provider.closest_dispenser_distance_sensor,
-                                                ThresholdActivator(isMinimum=False, thresholdValue=1)))
+            pre_cond3 = Condition(self.perception_provider.closest_dispenser_distance_sensor,
+                                                ThresholdActivator(isMinimum=False, thresholdValue=1))
+            dispense.add_precondition(Conjunction(pre_cond1,pre_cond3))
 
-                # Attach a block if close enough
+            # Attach a block if close enough
             attach = Attach(name="attach", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=4)
             self.behaviours.append(attach)
-            attach.add_effect(
-                Effect(self.perception_provider.number_of_blocks_sensor.name, indicator=+1, sensor_type=float))
+            pre_cond4 = Condition(self.perception_provider.sensor_dispensed_blocks,
+                                         ThresholdActivator(isMinimum=True,thresholdValue=1))
 
-            attach.add_precondition(Condition(self.perception_provider.closest_block_distance_sensor,
-                                                ThresholdActivator(isMinimum=False, thresholdValue=1)))
+            attach.add_effect(
+                Effect(self.perception_provider.sensor_attached_blocks.name, indicator=+1, sensor_type=float))
+
+            attach.add_precondition(Conjunction(pre_cond1,pre_cond4))
+
+            # attach_goal = GoalBase("attaching",permanent=True,
+            #                         conditions=[Condition(self.perception_provider.sensor_attached_blocks, GreedyActivator())],
+            #                         planner_prefix=self._agent_name,
+            #                         priority=1)
+
+            # self.goals.append(attach_goal)
 
             # explorer_2 = Explore(name="explore_2", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=5)
             # self.behaviours.append(explorer)

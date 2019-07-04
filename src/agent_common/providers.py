@@ -19,16 +19,30 @@ class PerceptionProvider(object):
 
     def __init__(self):
 
-        self.goals = []
 
-        self.relative_goals = []
+        #from mapc_rospy_bridge
+
+        self.goals = []
 
         self.dispensers = []
 
         self.obstacles = []
 
         self.blocks = []
+
+        self.entities = []
     
+
+        #Relative positions
+
+        self.relative_goals = []
+
+        self.count_attached_blocks = 0
+        self.sensor_attached_blocks = Sensor(name="sensor_attached_blocks",initial_value=0)
+
+        self.count_dispensed_blocks = 0
+        self.sensor_dispensed_blocks = Sensor(name="sensor_dispensed_blocks", initial_value=0)  
+
 
         self.closest_dispenser = None
 
@@ -36,7 +50,6 @@ class PerceptionProvider(object):
 
         self.perception_range = 5
 
-        self.number_of_blocks_sensor = Sensor(name="number_of_blocks", initial_value=0)  
         self.closest_block_distance_sensor = Sensor(name="closest_block_distance", initial_value=sys.maxint)
 
         self.closest_dispenser_distance_sensor = Sensor(name="closest_dispenser_distance", initial_value=sys.maxint)
@@ -189,15 +202,31 @@ class PerceptionProvider(object):
 
         self.blocks = request_action_msg.blocks
 
-        self.number_of_blocks_sensor.update(newValue=len(self.blocks))
-        self.number_of_blocks_sensor.sync()
+        """
+        blocks split as dispensed and attached
+        for behaviour manipulation
+        """
+        if len(self.blocks) > 0:
+            if self.agent.last_action == "request":
+                if self.agent.last_action_result in ["success"]:
+                    self.count_dispensed_blocks += 1
+                    self.sensor_dispensed_blocks.update(newValue=self.count_dispensed_blocks)
+                    self.sensor_dispensed_blocks.sync()
 
-        
-        self._update_closest_block(blocks=self.blocks)
+            elif self.agent.last_action == "attach":
+                if self.agent.last_action_result == "success":
+                    self.count_attached_blocks += 1
+                    self.sensor_attached_blocks.update(newValue=self.count_attached_blocks)
+                    self.sensor_attached_blocks.sync()
+
+                    self.count_dispensed_blocks -= 1
+                    self.sensor_dispensed_blocks.update(newValue=self.count_dispensed_blocks)
+                    self.sensor_dispensed_blocks.sync()
+
+            
+            self._update_closest_block(blocks=self.blocks)
 
 
-        # if len(self.blocks) > 0:
-        #     print("Blocks: {}".format(len(self.blocks))) 
 
     def _update_closest_block(self, blocks):
         """
@@ -227,6 +256,9 @@ class PerceptionProvider(object):
 
         self.obstacle_sensor.update(newValue=len(self.obstacles) > 0)
         self.obstacle_sensor.sync()
+
+   
+
 
     def check_vision_range(self,last_direction):
 
@@ -273,7 +305,15 @@ class PerceptionProvider(object):
         for i,j in itertools.product(range(y_min,y_max),range(x_min,x_max)):
             if(abs(self.agent_location.y - i) + abs(self.agent_location.x -j) <= self.perception_range):
                 self.local_map[i][j] = 0
-        
+
+
+        for goal in self.goals:
+            x_loc = goal.pos.x + self.agent_location.x
+            y_loc = goal.pos.y + self.agent_location.y
+            self.local_map[y_loc][x_loc] = 3
+            temp = Position(x_loc,y_loc)
+            if temp not in self.relative_goals:
+                self.relative_goals.append(temp)
 
         for obstacle in self.obstacles:
             # print("obstacle  x: {} y: {}".format(obstacle.pos.x,obstacle.pos.y))
@@ -286,13 +326,7 @@ class PerceptionProvider(object):
         # for block in self.blocks:
         #     self.local_map[block.pos.y +  self.agent_location.y][block.pos.x + self.agent_location.x] = 3
 
-        for goal in self.goals:
-            x_loc = goal.pos.x + self.agent_location.x
-            y_loc = goal.pos.y + self.agent_location.y
-            self.local_map[y_loc][x_loc] = 3
-            temp = Position(x_loc,y_loc)
-            if temp not in self.relative_goals:
-                self.relative_goals.append(temp)
+        
         self.local_map[self.agent_location.y][self.agent_location.x] = 4
 
 

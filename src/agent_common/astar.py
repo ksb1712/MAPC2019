@@ -1,6 +1,15 @@
 import heapq
 import numpy as np
 
+
+"""
+X - left to right
+Y - Top to bottom
+
+
+"""
+
+
 class Cell(object):
     def __init__(self, x, y, reachable):
         """
