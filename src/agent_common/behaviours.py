@@ -174,7 +174,10 @@ class Explore_better(BehaviourBase):
         x1 = (agent_map ==1)
     
         obs_Y, obs_X = np.where(x1)
-        
+        ent_Y, ent_X = np.where(agent_map == 8)
+
+        obs_Y = obs_Y.tolist() + ent_Y.tolist()
+        obs_X = obs_X.tolist() + ent_X.tolist()
 
         #Make tuples
         obs_cood = []
@@ -194,17 +197,17 @@ class Explore_better(BehaviourBase):
         range_ = 5 + 1
         for i in range(range_):
             if dest.x + i < agent_map.shape[1]:
-                if agent_map[dest.y][dest.x + i] == 3:
+                if agent_map[dest.y][dest.x + i] == 1:
                     return True
             if dest.x - i > 0:
-                if agent_map[dest.y][dest.x - i] == 3:
+                if agent_map[dest.y][dest.x - i] == 1:
                     return True
             if dest.y + i < agent_map.shape[0]:
-                if agent_map[dest.y + i][dest.x] == 3:
+                if agent_map[dest.y + i][dest.x] == 1:
                     return True
             
             if dest.y - i > 0:
-                if agent_map[dest.y - i][dest.x] == 3:
+                if agent_map[dest.y - i][dest.x] == 1:
                     return True
 
         return False
@@ -294,7 +297,7 @@ class Explore_better(BehaviourBase):
             
         else:
 
-            g_Y, g_X = np.where(agent_map == 3)
+            g_Y, g_X = np.where(agent_map == 7)
             if len(g_X) > 0 and len(g_X) < 11:
                 target_goal = Position(g_X[-1],g_Y[-1])
                 self.goal_path = True
@@ -302,6 +305,9 @@ class Explore_better(BehaviourBase):
             
             elif len(self.path) > 0:
                 direction = self.path.pop(0)
+                if self.check_obstacle_closeness(agent_map,agent_location) == False:
+                    self.path = []
+
 
             else:
             #Check if unexplored available
@@ -553,7 +559,10 @@ class MoveToDispenser(BehaviourBase):
 
         #Get location of obstacles
         obs_Y, obs_X = np.where(agent_map==1)
-        
+        ent_Y, ent_X = np.where(agent_map == 8)
+
+        obs_Y = obs_Y.tolist() + ent_Y.tolist()
+        obs_X = obs_X.tolist() + ent_X.tolist()
         #Make tuples
         obs_cood = []
         for i in range(len(obs_X)):
@@ -574,14 +583,12 @@ class MoveToDispenser(BehaviourBase):
 
         
         if len(self.path) == 0 and self.reached_loc == False:
-            self.local_map = self.perception_provider.local_map
-            d_Y, d_X = np.where(self.local_map == 2)
-            if len(d_Y) > 0:
-                target = Position(d_X[0],d_Y[0])
-                agent_location = self.perception_provider.agent_location
-                self.get_astar_path(self.local_map,agent_location,target)
-                if len(self.path) > 0:
-                    direction = self.path.pop(0)
+           
+            target = self.perception_provider.target_cell
+            agent_location = self.perception_provider.agent_location
+            self.get_astar_path(self.perception_provider.local_map,agent_location,target)
+            if len(self.path) > 0:
+                direction = self.path.pop(0)
 
         elif self.reached_loc == False:
             direction = self.path.pop(0)

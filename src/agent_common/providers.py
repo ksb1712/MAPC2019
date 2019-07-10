@@ -3,13 +3,16 @@ import rospy
 import sys
 
 from behaviour_components.sensors import Sensor
-from mapc_ros_bridge.msg import Position
+from mapc_ros_bridge.msg import Position, Dispenser, DLoc
 from agent_common.agent_utils import relative_euclidean_distance
 import numpy as np
 from std_msgs.msg import String
 import itertools
+import agent_common.astar as astar
 # import matplotlib.animation as animation
 # import matplotlib.pyplot as plt
+
+
 
 class PerceptionProvider(object):
     """
@@ -55,6 +58,7 @@ class PerceptionProvider(object):
         self.closest_dispenser_distance_sensor = Sensor(name="closest_dispenser_distance", initial_value=sys.maxint)
         self.dispenser_visible_sensor = Sensor(name="dispenser_visible", initial_value=False)
         self.dispenser_found = False
+        self.dispenser_type = []
 
         self.obstacle_sensor = Sensor(name="obstacle_visible",initial_value=0)
 
@@ -71,6 +75,157 @@ class PerceptionProvider(object):
         self.agent = None
         self.agent_location = Position(self.perception_range,self.perception_range) #Agent initial agent position to center of grid (vision range 5)
 
+        self.pub_status = False
+
+        self.data = DLoc()
+
+        self.target_selected = False
+        self.target_list = DLoc()
+        self.target_cell = None
+        self.target_selected_sensor = Sensor(name="target_selected",initial_value=False)
+    
+
+    def callback_target_disp(self,msg):
+        # if not self.target_selected:
+        # print(" *** in target call back *** ")
+        targets = msg.dispensers
+        for row in targets:
+            if row not in self.target_list.dispensers:
+                self.target_list.dispensers.append(row)
+
+    def callback_disp_loc(self,msg):
+        
+        # print("hello")
+        # print(data.dispensers[0])
+        # print(" ******* call back data: {}".format(len(data.dispensers)))
+
+        # print("**in call **")
+
+
+        for row in msg.dispensers:
+            if row not in self.data.dispensers:
+                self.data.dispensers.append(row)
+
+    def count_seen_disp_type(self):
+        count = []
+        for row in self.data.dispensers:
+            if row.type not in count:
+                count.append(row.type)
+        
+        return len(count)
+
+    def check_target_availability(self,x):
+        
+        target_type = []
+        for row in self.target_list.dispensers:
+            if row.pos == x.pos:
+                return False
+            if row.type not in target_type:
+                target_type.append(row.type)
+
+        if x.type in target_type:
+            if len(target_type) < self.count_seen_disp_type():
+                return False
+
+
+        return True
+        
+
+    def get_astar_path(self,dest):
+        
+        grid_height, grid_width = self.local_map.shape
+
+        #Get location of obstacles
+        
+        x1 = (self.local_map ==1)
+    
+        obs_Y, obs_X = np.where(x1)
+        ent_Y, ent_X = np.where(self.local_map == 8)
+
+        obs_Y = obs_Y.tolist() + ent_Y.tolist()
+        obs_X = obs_X.tolist() + ent_X.tolist()
+
+        #Make tuples
+        obs_cood = []
+        for i in range(len(obs_X)):
+            obs_cood.append((obs_X[i],obs_Y[i]))
+
+        
+        obs_cood = tuple(obs_cood)
+
+        grid = astar.AStar(grid_height,grid_width)
+        grid.init_grid(obs_cood,(self.agent_location.x,self.agent_location.y),(dest.x,dest.y))
+        return len(grid.get_path())
+
+    def _update_global_dispenser(self):
+        
+            # print("**call sub **")
+        rospy.Subscriber("dispenser_loc",DLoc,self.callback_disp_loc)
+
+        # if self.pub_status == False:
+        for d_type in self.dispenser_type:
+            d_Y, d_X = np.where(self.local_map == self.dispenser_type.index(d_type) + 2)
+            for x,y in zip(d_X,d_Y):
+                rel_x = x - self.goal_origin.x
+                rel_y = y - self.goal_origin.y
+                temp_d = Dispenser(pos=Position(rel_x,rel_y),type=d_type)
+                if temp_d not in self.data.dispensers:
+                    self.data.dispensers.append(temp_d)
+        
+        if len(self.data.dispensers) > 0:
+            self.pub_status = True
+            # print(data.dispensers[0])
+            # print("publishing first time")
+            pub = rospy.Publisher("dispenser_loc",DLoc,queue_size=1)
+            pub.publish(self.data) 
+
+        rospy.Subscriber("target_cell",DLoc,self.callback_target_disp)
+
+        if not self.target_selected:
+            print("target not selected")
+
+            if len(self.target_list.dispensers) > 0:
+                min_dist = 10000
+
+                for row in self.data.dispensers:
+                    if self.check_target_availability(row):
+                        dest = Position(row.pos.x + self.goal_origin.x, row.pos.y + self.goal_origin.y)
+                        temp_dist = self.get_astar_path(dest)
+                        if temp_dist < min_dist:
+                            min_dist = temp_dist
+                            print("** target selected ** ")
+                            self.target_cell = dest
+                            self.target_selected_sensor.update(newValue=True)
+                            self.target_selected_sensor.sync()
+                            self.target_list.dispensers.append(Dispenser(pos=Position(row.pos.x,row.pos.y),type=row.type))
+                            self.target_selected = True
+            
+            else:
+                min_dist = 10000
+                for row in self.data.dispensers:
+                    dest = Position(row.pos.x + self.goal_origin.x, row.pos.y + self.goal_origin.y)
+                    temp_dist = self.get_astar_path(dest)
+                    print("dist: {}".format(temp_dist))
+                    if temp_dist < min_dist:
+                        min_dist = temp_dist
+                        print("** target selected ** ")
+                        self.target_cell = dest
+                        self.target_selected_sensor.update(newValue=True)
+                        self.target_selected_sensor.sync()
+                        self.target_list.dispensers.append(Dispenser(pos=Position(row.pos.x,row.pos.y),type=row.type))
+                        self.target_selected = True
+
+                
+                        
+
+        if len(self.target_list.dispensers) > 0:
+            # print("** publish target ** ")
+            pub = rospy.Publisher("target_cell",DLoc,queue_size=1)
+            pub.publish(self.target_list) 
+
+
+
+
 
 
     def update_perception(self, request_action_msg):
@@ -81,8 +236,18 @@ class PerceptionProvider(object):
 
         self._request_action_msg = request_action_msg
 
+
+        # if self.origin_found:
+        #     pub = rospy.Publisher('origin_loc', String, queue_size=5)
+        #     pub.publish(String("{},{},{}".format(self.agent.name,self.goal_origin.x,self.goal_origin.y)))
+       
+        if self.origin_found:
+            self._update_global_dispenser()
+
+
         self.agent = request_action_msg.agent
 
+        self.entities = request_action_msg.entities
 
         self._update_dispensers(request_action_msg)
 
@@ -95,6 +260,7 @@ class PerceptionProvider(object):
 
         self.map_status()
 
+    
     def get_goal_origin(self):
         
         if(len(self.relative_goals) >= 12):
@@ -129,10 +295,7 @@ class PerceptionProvider(object):
 
 
 
-        if self.origin_found:
-            pub = rospy.Publisher('origin_loc', String, queue_size=10)
-            pub.publish(String("{},{},{}".format(self.agent.name,self.goal_origin.x,self.goal_origin.y)))
-        
+     
 
         if (self.origin_found == False):
             print("{} says False".format(self.agent.name))
@@ -273,6 +436,8 @@ class PerceptionProvider(object):
                 temp = [-1 for i in range(y)]
                 self.local_map = np.insert(self.local_map,0,temp,axis=0)
                 self.agent_location.y += 1
+                if(self.origin_found):
+                    self.goal_origin.y += 1
         
         elif last_direction == "s":
             if x - self.agent_location.y <= self.perception_range:
@@ -289,6 +454,8 @@ class PerceptionProvider(object):
                 temp = [-1 for i in range(x)]
                 self.local_map = np.insert(self.local_map,0,temp,axis=1)
                 self.agent_location.x += 1 
+                if(self.origin_found):
+                    self.goal_origin.x += 1
 
 
     def _update_map(self):
@@ -310,7 +477,7 @@ class PerceptionProvider(object):
         for goal in self.goals:
             x_loc = goal.pos.x + self.agent_location.x
             y_loc = goal.pos.y + self.agent_location.y
-            self.local_map[y_loc][x_loc] = 3
+            self.local_map[y_loc][x_loc] = 7
             temp = Position(x_loc,y_loc)
             if temp not in self.relative_goals:
                 self.relative_goals.append(temp)
@@ -318,16 +485,24 @@ class PerceptionProvider(object):
         for obstacle in self.obstacles:
             # print("obstacle  x: {} y: {}".format(obstacle.pos.x,obstacle.pos.y))
             self.local_map[obstacle.pos.y + self.agent_location.y][obstacle.pos.x +  self.agent_location.x] = 1
+
+        for entity in self.entities:
+            self.local_map[entity.pos.y + self.agent_location.y][entity.pos.x +  self.agent_location.x] = 8
+
         
         for dispenser in self.dispensers:
-            self.local_map[dispenser.pos.y +  self.agent_location.y][dispenser.pos.x +  self.agent_location.x] = 2
+            b_type = dispenser.type
+            if b_type not in self.dispenser_type:
+                self.dispenser_type.append(b_type)
+            b_val = self.dispenser_type.index(b_type) + 2
+            self.local_map[dispenser.pos.y +  self.agent_location.y][dispenser.pos.x +  self.agent_location.x] = b_val
             # print("dispenser x: {} y: {}".format(dispenser.pos.x,dispenser.pos.y))
 
         # for block in self.blocks:
         #     self.local_map[block.pos.y +  self.agent_location.y][block.pos.x + self.agent_location.x] = 3
 
         
-        self.local_map[self.agent_location.y][self.agent_location.x] = 4
+        self.local_map[self.agent_location.y][self.agent_location.x] = 9
 
 
     #TODO
@@ -355,11 +530,14 @@ class PerceptionProvider(object):
         -1 - unknown
         0 - empty
         1 - obstacle
-        2 - dispenser
-        # 3 - block
-        3 - goal
-        # 5 - entity
-        4 - agent
+        2 - dispenser 1
+        3 - disp 2 
+        4 - disp 3 
+        5 - disp 4
+        6 - disp 5
+        7 - goal
+        8 - entity
+        9 - agent
 
         todo:
         code based on dispenser type
@@ -388,8 +566,7 @@ class PerceptionProvider(object):
 
             if last_direction == 'n':
                 self.agent_location.y -= 1
-                if(self.origin_found):
-                    self.goal_origin.y += 1
+               
             
             elif last_direction == 's':
                 self.agent_location.y += 1
@@ -399,8 +576,7 @@ class PerceptionProvider(object):
 
             elif last_direction == 'w':
                 self.agent_location.x -= 1
-                if(self.origin_found):
-                    self.goal_origin.x += 1
+                
             
             self.check_vision_range(last_direction)
         
