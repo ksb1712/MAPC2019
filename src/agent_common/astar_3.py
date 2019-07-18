@@ -54,7 +54,7 @@ class AStar(object):
     def print_cell(self,title,cell):
         print("{}: {},{},{}".format(title,cell.x,cell.y,cell.angle))
 
-    def init_grid(self,obstacles,agent_start_cell,agent_end_cell,block_start_cell = None,block_end_cell = None):
+    def init_grid(self,obstacles,agent_start_cell,agent_end_cell,block_start_cell = (0,0),block_end_cell = (0,0),flag=0):
         walls = obstacles # Tuple ((x,y),(x,y))
         for x in range(self.grid_width):
             for y in range(self.grid_height):
@@ -70,8 +70,8 @@ class AStar(object):
         # self.print_cell("start",agent_start)
 
         self.is_same = True
-
-        if block_start_cell is not None:
+        
+        if flag != 0:
             block_start = self.get_cell(block_start_cell[0],block_start_cell[1]) #(x,y)
             start_angle = self.get_relative_orientation(agent_start,block_start)
             # print(start_angle)
@@ -79,7 +79,7 @@ class AStar(object):
         else:
             # print("yes")
             start_angle = 0
-        if block_end_cell is not None:    
+        if flag != 0:    
             block_end = self.get_cell(block_end_cell[0],block_end_cell[1]) #(x,y)
             end_angle = self.get_relative_orientation(agent_end,block_end)
             self.is_same = False
@@ -102,8 +102,8 @@ class AStar(object):
         self.end.angle=end_angle
         self.update_angle(agent_end_cell[0],agent_end_cell[1],end_angle)
 
-        # print("start: {}".format((self.start.x,self.start.y,self.start.angle)))
-        # print("end: {}".format((self.end.x,self.end.y,self.end.angle)))
+        print("start: {}".format((self.start.x,self.start.y,self.start.angle)))
+        print("end: {}".format((self.end.x,self.end.y,self.end.angle)))
 
         # print("start orientation: {} \n end orienteation: {}".format(self.start.angle,self.end.angle))
 
@@ -174,7 +174,7 @@ class AStar(object):
         @returns adjacent cells list 
         """
         cells = []
-        # print("current cell: {}".format((cell.x,cell.y,cell.angle)))
+        print("current cell: {}".format((cell.x,cell.y,cell.angle)))
         """
         cell limits
         """
@@ -314,9 +314,12 @@ class AStar(object):
             return 'w'
         elif nxt_cell.y > cur_cell.y:
             return 's'
-        elif nxt_cell.x < cur_cell.x:
+        elif nxt_cell.y < cur_cell.y:
             return 'n'
         
+        if self.is_same:
+            return 'n'
+
         elif nxt_cell.angle == 0 and cur_cell.angle == 270:
             return 'ccw'
         elif nxt_cell.angle == 270 and cur_cell == 0:
@@ -325,7 +328,7 @@ class AStar(object):
         elif nxt_cell.angle > cur_cell.angle:
             return 'ccw'
         
-        else:
+        elif nxt_cell.angle < cur_cell.angle:
             return 'cw'
     
     def return_path(self,cell,full_path=False):
@@ -336,7 +339,7 @@ class AStar(object):
         while cell is not self.start:
             path.append(self.get_direction(cell.parent,cell))
             cell = cell.parent
-            # print 'path: cell: %d,%d' % (cell.x, cell.y)
+            print 'path: cell: %d,%d' % (cell.x, cell.y)
             # path.append(self.get_direction(parent,cell))
         path.reverse()
         return path
@@ -358,7 +361,7 @@ class AStar(object):
             # if ending cell, display found path
             # print(cell.x,cell.y,cell.angle,cell.h)
             if cell.x == self.end.x and cell.y == self.end.y and cell.h == 0:
-                # print("End is {}".format((cell.x,cell.y,cell.angle)))
+                print("End is {}".format((cell.x,cell.y,cell.angle)))
                 path = self.return_path(cell,full_path)
                 return path
                 break
@@ -369,7 +372,7 @@ class AStar(object):
                 
                 temp = self.get_cell(adj_cell.x,adj_cell.y)
 
-                # print("adj: {},{},{}, {}, cost: {}, heuristic: {}".format(adj_cell.x,adj_cell.y,adj_cell.angle,adj_cell.reachable,self.get_cost(cell,adj_cell),self.get_heuristic(adj_cell)))
+                print("adj: {},{},{}, {}, cost: {}, heuristic: {}".format(adj_cell.x,adj_cell.y,adj_cell.angle,adj_cell.reachable,self.get_cost(cell,adj_cell),self.get_heuristic(adj_cell)))
                 adj_set = (adj_cell.x,adj_cell.y,adj_cell.angle)
                 # if adj_set in self.closed:
                 #     print("adj {} closed".format((adj_cell.x,adj_cell.y)))
@@ -390,7 +393,5 @@ class AStar(object):
                         # add adj cell to open list
                         heapq.heappush(self.opened, (adj_cell.f, adj_cell))
             
-            count += 1
-            if count == 10:
-                break
+            
 
