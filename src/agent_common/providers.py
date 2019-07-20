@@ -81,18 +81,28 @@ class PerceptionProvider(object):
 
         self.data = DLoc()
 
-        self.target_selected = False
-        self.target_list = DLoc()
-        self.target_cell = Position(0,0)
-        self.target_selected_sensor = Sensor(name="target_selected",initial_value=False)
+        self.target_disp_selected = False
+        self.target_dispenser_array = DLoc()
+        self.target_dispenser_cell = Position(0,0)
+        self.target_dispenser_selected_sensor = Sensor(name="dispenser_selected",initial_value=False)
         
+
         self.is_task_selected = False
         self.selected_task = Task()
+        self.target_submit_array = DLoc()
+        self.target_submit_cell = Position(0,0)
+        self.target_submit_selected_sensor = Sensor(name="submit_selected",initial_value=False)
 
         rospy.Subscriber("dispenser_loc",DLoc,self.callback_disp_loc)
         rospy.Subscriber("target_dispenser",DLoc,self.callback_target_disp)
         rospy.Subscriber("task_selected",Task,self.callback_task_selected)
+        rospy.Subscriber("target_submit",DLoc,self.callback_target_submit)
 
+    def callback_target_submit(self,msg):
+        targets = msg.dispensers
+        for row in targets:
+            if self.check_if_disp_exits(row,self.target_submit_array):
+                self.target_submit_array.dispensers.append(row)
     
 
     def callback_target_disp(self,msg):
@@ -100,8 +110,8 @@ class PerceptionProvider(object):
         # print(" *** in target call back *** ")
         targets = msg.dispensers
         for row in targets:
-            if self.check_if_disp_exits(row,self.target_list):
-                self.target_list.dispensers.append(row)
+            if self.check_if_disp_exits(row,self.target_dispenser_array):
+                self.target_dispenser_array.dispensers.append(row)
 
     def check_if_disp_exits(self,row,data):
         
@@ -163,7 +173,7 @@ class PerceptionProvider(object):
     def check_target_availability(self,x):
         
         target_type = []
-        for row in self.target_list.dispensers:
+        for row in self.target_dispenser_array.dispensers:
             if row.pos == x.pos:
                 return False
             if row.type not in target_type:
@@ -189,7 +199,7 @@ class PerceptionProvider(object):
                 path_len = len(get_astar_path(self.local_map,self.goal_origin,Position(x,y)))
                 rel_x = x - self.goal_origin.x
                 rel_y = y - self.goal_origin.y
-                temp_d = Dispenser(pos=Position(rel_x,rel_y),type=d_type)
+                temp_d = Dispenser(pos=Position(rel_x,rel_y),type=d_type,distance=path_len)
                 if self.check_if_disp_exits(temp_d,self.data):
                     # print("Temp_disp: {}".format(temp_d))
                     self.data.dispensers.append(temp_d)
@@ -215,67 +225,101 @@ class PerceptionProvider(object):
 
         print("Dispensers found: {}".format(len(self.data.dispensers)))
 
-        if not self.target_selected:
-            print("target not selected")
+        # if self.is_task_selected:
+        #     if not self.target_selected:
+        #         print("target not selected")
+        #         if len(self.target_list.dispensers) > 0:
+        #             min_dist = 10000
+        #             temp_cell = None
+        #             for row in self.data.dispensers:
+        #                 print("row: ",row.pos)
+        #                 if self.check_target_availability(row):
+        #                     dest = Position(row.pos.x + self.goal_origin.x, row.pos.y + self.goal_origin.y)
+        #                     temp_dist = get_astar_path(self.local_map, self.agent_location, dest,full_path=False)
+        #                     if len(temp_dist) < min_dist:
+        #                         min_dist = len(temp_dist)
+        #                         temp_cell = row.pos
+        #                         print("Temp:cell: {}".format(temp_cell))
 
-            if len(self.target_list.dispensers) > 0:
-                min_dist = 10000
-                temp_cell = None
-                for row in self.data.dispensers:
-                    print("row: ",row.pos)
-                    if self.check_target_availability(row):
-                        dest = Position(row.pos.x + self.goal_origin.x, row.pos.y + self.goal_origin.y)
-                        temp_dist = get_astar_path(self.local_map, self.agent_location, dest,full_path=False)
-                        if len(temp_dist) < min_dist:
-                            min_dist = len(temp_dist)
-                            temp_cell = row.pos
-                            print("Temp:cell: {}".format(temp_cell))
+        #                     # self.target_list.dispensers.append(Dispenser(pos=Position(row.pos.x,row.pos.y),type=row.type))
 
-                        # self.target_list.dispensers.append(Dispenser(pos=Position(row.pos.x,row.pos.y),type=row.type))
+        #             if temp_cell is not None:
+        #                 print("** target selected other** ")
 
-                if temp_cell is not None:
-                    print("** target selected other** ")
-
-                    print(temp_cell)
-                    self.target_cell.x = temp_cell.x
-                    self.target_cell.y = temp_cell.y
-                    self.target_selected_sensor.update(newValue=True)
-                    self.target_selected_sensor.sync()
-                    self.target_list.dispensers.append(Dispenser(pos=temp_cell,type=row.type))
-                    self.target_selected = True
-            
-            else:
-                min_dist = 10000
-                temp_cell = None
-                # dest_path = []
-                for row in self.data.dispensers:
-                    print("row: ",row.pos)
-                    dest = Position(row.pos.x + self.goal_origin.x, row.pos.y + self.goal_origin.y)
-                    temp_dist = get_astar_path(self.local_map, self.agent_location, dest,full_path=False)
-                    # print("dist: {}".format(temp_dist))
-                    if len(temp_dist) < min_dist:
-                        min_dist = len(temp_dist)
-                        temp_cell = row.pos
-                        print("Temp:cell: {}".format(temp_cell))
-                        # dest_path = temp_dist
-                # print("** target selected ** ")
-                if temp_cell is not None:
-                    print("** target selected base** ")
-                    print(temp_cell)
-                    self.target_cell.x = temp_cell.x
-                    self.target_cell.y = temp_cell.y
-                    self.target_selected_sensor.update(newValue=True)
-                    self.target_selected_sensor.sync()
-                    self.target_list.dispensers.append(Dispenser(pos=temp_cell,type=row.type))
-                    self.target_selected = True
-
+        #                 print(temp_cell)
+        #                 self.target_cell.x = temp_cell.x
+        #                 self.target_cell.y = temp_cell.y
+        #                 self.target_selected_sensor.update(newValue=True)
+        #                 self.target_selected_sensor.sync()
+        #                 self.target_list.dispensers.append(Dispenser(pos=temp_cell,type=row.type))
+        #                 self.target_selected = True
                 
-                        
-            print("Target Selection: {}".format(self.target_cell))
-        if len(self.target_list.dispensers) > 0:
-            # print("** publish target ** ")
-            pub = rospy.Publisher("target_dispenser",DLoc,queue_size=1)
-            pub.publish(self.target_list) 
+        #         else:
+        #             min_dist = 10000
+        #             temp_cell = None
+        #             # dest_path = []
+        #             for row in self.data.dispensers:
+        #                 print("row: ",row.pos)
+        #                 dest = Position(row.pos.x + self.goal_origin.x, row.pos.y + self.goal_origin.y)
+        #                 temp_dist = get_astar_path(self.local_map, self.agent_location, dest,full_path=False)
+        #                 # print("dist: {}".format(temp_dist))
+        #                 if len(temp_dist) < min_dist:
+        #                     min_dist = len(temp_dist)
+        #                     temp_cell = row.pos
+        #                     print("Temp:cell: {}".format(temp_cell))
+        #                     # dest_path = temp_dist
+        #             # print("** target selected ** ")
+        #             if temp_cell is not None:
+        #                 print("** target selected base** ")
+        #                 print(temp_cell)
+        #                 self.target_cell.x = temp_cell.x
+        #                 self.target_cell.y = temp_cell.y
+        #                 self.target_selected_sensor.update(newValue=True)
+        #                 self.target_selected_sensor.sync()
+        #                 self.target_list.dispensers.append(Dispenser(pos=temp_cell,type=row.type))
+        #                 self.target_selected = True
+
+                    
+                            
+        #         print("Target Selection: {}".format(self.target_cell))
+
+        if self.is_task_selected:  #See if I have a task
+            if not self.target_disp_selected: #See if I have alreay been allocated a task
+                for row in self.selected_task.requirements: #Read requirements
+                    if row.type in self.dispenser_type and not self.target_disp_selected: #See if I have seen the required dispenser type
+                        if self.check_if_disp_exits(row,self.target_submit_array):  #See if the task has been allocated to some other agent
+                            min_dist = 1000
+                            temp_dispenser = None
+                            for disp in self.data.dispensers:
+                                if disp.type == row.type:
+                                    if self.check_if_disp_exits(disp,self.target_dispenser_array): #See if dispenser is free
+                                        if disp.distance < min_dist:
+                                            min_dist = disp.distance
+                                            temp_dispenser = disp.pos
+                            if temp_dispenser is not None:
+                                print("** {} target Selected ** ".format(self.agent.name))
+                                print("Dispenser: ", temp_dispenser)
+                                print("Submit: ",row.pos)
+                                self.target_dispenser_cell.x = temp_dispenser.x
+                                self.target_dispenser_cell.y = temp_dispenser.y
+                                self.target_dispenser_selected_sensor.update(newValue=True)
+                                self.target_dispenser_selected_sensor.sync()
+                                self.target_dispenser_array.dispensers.append(Dispenser(pos=temp_dispenser,type=row.type,distance=min_dist))
+                                self.target_disp_selected = True
+
+                                self.target_submit_cell.x = row.pos.x
+                                self.target_submit_cell.y = row.pos.y
+                                self.target_submit_array.dispensers.append(Dispenser(pos=row.pos,type=row.type,distance=0,agent=self.agent.name))
+
+
+            if len(self.target_dispenser_array.dispensers) > 0:
+                # print("** publish target ** ")
+                pub = rospy.Publisher("target_dispenser",DLoc,queue_size=1)
+                pub.publish(self.target_dispenser_array) 
+            
+            if len(self.target_submit_array.dispensers) > 0:
+                pub = rospy.Publisher("target_submit",DLoc,queue_size=1)
+                pub.publish(self.target_submit_array)
 
 
 
@@ -429,13 +473,13 @@ class PerceptionProvider(object):
         print("In distance")
         self.closest_dispenser = None
         closest_distance = sys.maxint
-        print("Selected: ",self.target_selected)
-        if self.target_selected:
+        # print("Selected: ",self.target_selected)
+        if self.target_disp_selected:
             # target = Position(, )
-            closest_distance = (abs(self.target_cell.x + self.goal_origin.x - self.agent_location.x) + 
-                               abs(self.target_cell.y + self.goal_origin.y - self.agent_location.y))
+            closest_distance = (abs(self.target_dispenser_cell.x + self.goal_origin.x - self.agent_location.x) + 
+                               abs(self.target_dispenser_cell.y + self.goal_origin.y - self.agent_location.y))
            
-            print("Target: {}, Distance: {}".format((self.target_cell.x + self.goal_origin.x,self.target_cell.y + self.goal_origin.y),closest_distance))
+            print("Target: {}, Distance: {}".format((self.target_dispenser_cell.x + self.goal_origin.x,self.target_dispenser_cell.y + self.goal_origin.y),closest_distance))
             # if closest_distance <= 1.0:
             #     self.closest_dispenser = target
         # for d in dispensers:

@@ -500,8 +500,8 @@ class Dispense(BehaviourBase):
             print("{} Dispense called".format(self._agent_name))
             goal = self._perception_provider.goal_origin
 
-            pos_x = self._perception_provider.target_cell.x + goal.x
-            pos_y = self._perception_provider.target_cell.y + goal.y
+            pos_x = self._perception_provider.target_dispenser_cell.x + goal.x
+            pos_y = self._perception_provider.target_dispenser_cell.y + goal.y
             agent = self._perception_provider.agent_location
             if pos_x > agent.x:
                 direction = 'e'
@@ -548,7 +548,7 @@ class MoveToDispenser(BehaviourBase):
         self.path = []
         self.goal_location = self.perception_provider.goal_origin
         self.reached_loc = False
-        self.target_cell = self.perception_provider.target_cell
+        self.target_cell = self.perception_provider.target_dispenser_cell
 
     
     
@@ -635,8 +635,8 @@ class Attach(BehaviourBase):
             
             goal = self.perception_provider.goal_origin
 
-            pos_x = self.perception_provider.target_cell.x + goal.x
-            pos_y = self.perception_provider.target_cell.y + goal.y
+            pos_x = self.perception_provider.target_dispenser_cell.x + goal.x
+            pos_y = self.perception_provider.target_dispenser_cell.y + goal.y
             agent = self.perception_provider.agent_location
             if pos_x > agent.x:
                 direction = 'e'
@@ -843,8 +843,8 @@ class Explore_astar(BehaviourBase):
         # random_move = ['n','e','w','s']
         direction = ''
         print("{} Explore_astar called".format(self._agent_name))
-        print("Target_selected_sensor: {}".format(self.perception_provider.target_selected_sensor._value))
-        if not self.perception_provider.target_selected:
+        print("Target_selected_sensor: {}".format(self.perception_provider.target_dispenser_selected_sensor._value))
+        if not self.perception_provider.target_disp_selected:
 
             # print("dispenser visible: {}".format(self.perception_provider.dispenser_visible_sensor._value))
             # print("#goal cells: {}".format(self.perception_provider.count_goal_cells._value))

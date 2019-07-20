@@ -182,7 +182,7 @@ class RhbpAgent(object):
             
             # pre_cond1 = Condition(self.perception_provider.count_goal_cells,
             #                       ThresholdActivator(isMinimum=True, thresholdValue=12))
-            pre_cond2 = Condition(self.perception_provider.target_selected_sensor, 
+            pre_cond2 = Condition(self.perception_provider.target_dispenser_selected_sensor, 
                                   BooleanActivator(desiredValue=True))
             reach_dispenser.add_precondition(pre_cond2)
           
