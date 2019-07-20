@@ -102,8 +102,8 @@ class AStar(object):
         self.end.angle=end_angle
         self.update_angle(agent_end_cell[0],agent_end_cell[1],end_angle)
 
-        print("start: {}".format((self.start.x,self.start.y,self.start.angle)))
-        print("end: {}".format((self.end.x,self.end.y,self.end.angle)))
+        # print("start: {}".format((self.start.x,self.start.y,self.start.angle)))
+        # print("end: {}".format((self.end.x,self.end.y,self.end.angle)))
 
         # print("start orientation: {} \n end orienteation: {}".format(self.start.angle,self.end.angle))
 
@@ -174,7 +174,7 @@ class AStar(object):
         @returns adjacent cells list 
         """
         cells = []
-        print("current cell: {}".format((cell.x,cell.y,cell.angle)))
+        # print("current cell: {}".format((cell.x,cell.y,cell.angle)))
         """
         cell limits
         """
@@ -334,14 +334,18 @@ class AStar(object):
     def return_path(self,cell,full_path=False):
         # cell = self.end
         path = []
-        if full_path == False:
+        # print(cell.x,cell.y,cell.parent.x,cell.parent.y)
+        if full_path == False and cell.parent is not None:
             cell = cell.parent
         while cell is not self.start:
-            path.append(self.get_direction(cell.parent,cell))
-            cell = cell.parent
-            print 'path: cell: %d,%d' % (cell.x, cell.y)
+            if cell is not None:
+                path.append(self.get_direction(cell.parent,cell))
+                cell = cell.parent
+            # print 'path: cell: %d,%d' % (cell.x, cell.y)
             # path.append(self.get_direction(parent,cell))
         path.reverse()
+        if path is None:
+            path = []
         return path
 
 
@@ -351,6 +355,7 @@ class AStar(object):
         path = []
         count = 0
         while len(self.opened):
+            count += 1
             # pop cell from heap queue 
             f, cell = heapq.heappop(self.opened)
             # add cell to closed list so we don't process it twice
@@ -360,8 +365,8 @@ class AStar(object):
             # print("closed: {}".format(len(self.closed)))
             # if ending cell, display found path
             # print(cell.x,cell.y,cell.angle,cell.h)
-            if cell.x == self.end.x and cell.y == self.end.y and cell.h == 0:
-                print("End is {}".format((cell.x,cell.y,cell.angle)))
+            if (cell.x == self.end.x and cell.y == self.end.y and cell.h == 0) or count > 15:
+                # print("End is {}".format((cell.x,cell.y,cell.angle)))
                 path = self.return_path(cell,full_path)
                 return path
                 break
@@ -372,7 +377,7 @@ class AStar(object):
                 
                 temp = self.get_cell(adj_cell.x,adj_cell.y)
 
-                print("adj: {},{},{}, {}, cost: {}, heuristic: {}".format(adj_cell.x,adj_cell.y,adj_cell.angle,adj_cell.reachable,self.get_cost(cell,adj_cell),self.get_heuristic(adj_cell)))
+                # print("adj: {},{},{}, {}, cost: {}, heuristic: {}".format(adj_cell.x,adj_cell.y,adj_cell.angle,adj_cell.reachable,self.get_cost(cell,adj_cell),self.get_heuristic(adj_cell)))
                 adj_set = (adj_cell.x,adj_cell.y,adj_cell.angle)
                 # if adj_set in self.closed:
                 #     print("adj {} closed".format((adj_cell.x,adj_cell.y)))

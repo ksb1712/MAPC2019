@@ -15,7 +15,7 @@ from agent_common.providers import PerceptionProvider
 
 import numpy as np
 import math
-import agent_common.astar_3 as astar
+from agent_common.astar_path import *
 
 def action_generic_simple(publisher, action_type, params=[]):
     """
@@ -30,45 +30,7 @@ def action_generic_simple(publisher, action_type, params=[]):
     publisher.publish(action)
 
 
-def get_astar_path(agent_map,agent_start,agent_dest, block_start = None, block_dest = None,flag=0):
-        
-        grid_height, grid_width = agent_map.shape
-        print("in path planner")
-        #Get location of obstacles
-        
-        obs_Y, obs_X = np.where(agent_map == 1)
-        ent_Y, ent_X = np.where(agent_map == 8)
-        un_Y, un_X = np.where(agent_map == -1)
 
-        obs_Y = obs_Y.tolist() + ent_Y.tolist() + un_Y.tolist()
-        obs_X = obs_X.tolist() + ent_X.tolist() + un_X.tolist()
-
-
-
-        #Make tuples
-        obs_cood = []
-        for i in range(len(obs_X)):
-            obs_cood.append((obs_X[i],obs_Y[i]))
-
-        
-        obs_cood = tuple(obs_cood)
-        # if (agent_dest.x,agent_dest.y) in obs_cood:
-        #     obs_cood = list(obs_cood)
-        #     obs_cood.remove((agent_dest.x,agent_dest.y))
-        #     obs_cood = tuple(obs_cood)
-        grid = astar.AStar(grid_height,grid_width)
-        
-        # if block_start is None:
-        grid.init_grid(obs_cood,(agent_start.x,agent_start.y),(agent_dest.x,agent_dest.y))
-        
-        print("Grid initialized")
-        # else:
-        #     grid.init_grid(obs_cood,(agent_start.x,agent_start.y),(agent_dest.x,agent_dest.y),
-        #                   (block_start.x,block_start.y),(block_dest.x,block_dest.y))
-
-        path = grid.get_path(True)
-        print("path obtained")
-        return path
         
 class GenericActionBehaviour(BehaviourBase):
     """
@@ -194,6 +156,7 @@ class Explore_better(BehaviourBase):
         self.const_direction = self.direction_dict[random.randint(0,3)]
 
         self.goal_path = False
+        self.history = []
         # self.have_path = False
         # self.reached_loc = False
 
@@ -250,15 +213,20 @@ class Explore_better(BehaviourBase):
                 min_dist_array.pop(min_index)
                 u_X.pop(min_index)
                 u_Y.pop(min_index)
+            if temp in self.history:
+                min_dist_array.pop(min_index)
+                u_X.pop(min_index)
+                u_Y.pop(min_index)
             else:
                 self.path = get_astar_path(agent_map,agent_location,temp)
+                self.history.append(temp)
                 if self.path[0] != last_d:
                     print("{} --- {}".format(self._agent_name, self.path[0]))
                     break
                 min_dist_array.pop(min_index)
                 u_X.pop(min_index)
                 u_Y.pop(min_index)
-                
+            
 
 
 
@@ -526,20 +494,30 @@ class Dispense(BehaviourBase):
 
     def do_step(self):
         
-        
-        print("{} Dispense called".format(self._agent_name))
         print("{} blocks dispensed: {}".format(self._agent_name,self._perception_provider.sensor_dispensed_blocks._value))
-        if self._perception_provider.closest_dispenser:
-            
+        direction = ''
+        if self._perception_provider.sensor_dispensed_blocks._value < 1:
+            print("{} Dispense called".format(self._agent_name))
+            goal = self._perception_provider.goal_origin
 
-            direction = pos_to_direction(self._perception_provider.closest_dispenser.pos)
+            pos_x = self._perception_provider.target_cell.x + goal.x
+            pos_y = self._perception_provider.target_cell.y + goal.y
+            agent = self._perception_provider.agent_location
+            if pos_x > agent.x:
+                direction = 'e'
+            elif pos_x < agent.x:
+                direction = 'w'
+            elif pos_y < agent.y:
+                direction = 'n'
+            elif pos_y > agent.y:
+                direction = 's'
             # random_move = ['n', 's', 'e', 'w']
             # direction = random.choice(random_move)
             params = [KeyValue(key="direction", value=direction)]
             print("{} Dispense direction {}".format(self._agent_name,direction))
             rospy.logdebug(self._agent_name + "::" + self._name + " request dispense " + str(params))
             action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_REQUEST,
-                                  params=params)
+                                    params=params)
 
         else:
             rospy.logerr("Behaviour:%s: no dispenser in range", self.name)
@@ -568,40 +546,55 @@ class MoveToDispenser(BehaviourBase):
 
         # self.local_map = self.perception_provider.local_map
         self.path = []
+        self.goal_location = self.perception_provider.goal_origin
         self.reached_loc = False
+        self.target_cell = self.perception_provider.target_cell
 
     
     
     def do_step(self):
 
         print("{} Move to D called".format(self._agent_name))
+        # target = self.perception_provider.target_cell
+        # goal = self.perception_provider.goal_origin
+
         
         direction = ''
-
-        
-        if len(self.path) == 0 and self.reached_loc == False:
-           
-            target = self.perception_provider.target_cell
+        # target = Positon(self.target.x + self.goal_location.x,self.target.y + self.goal_location.y)
+        if not self.reached_loc:
+            if self.perception_provider.goal_origin != self.goal_location:
+                self.goal_location = self.perception_provider.goal_origin
+                self.path=[]
             agent_location = self.perception_provider.agent_location
-            self.get_astar_path(self.perception_provider.local_map,agent_location,target)
-            if len(self.path) > 0:
-                direction = self.path.pop(0)
+            target = Position(self.target_cell.x + self.goal_location.x, self.target_cell.y + self.goal_location.y)
+            print("Target_org: {} \n Target_modified: {} \n agent: {} \n  Goal {}".format(self.target_cell, target,agent_location,self.goal_location))
+            print("Map shape: {}".format(self.perception_provider.local_map.shape))
+        
+            if abs(agent_location.x - target.x) + abs(agent_location.y - target.y) <= 1:
+                self.reached_loc = True
+                print("{} has reached disp".format(self._agent_name))
 
-        elif self.reached_loc == False:
-            direction = self.path.pop(0)
+            else:
 
-        else:
-            self.reached_loc = True
-            print("{} has reached disp".format(self._agent_name))
+                if len(self.path) == 0:
+                    
+                    self.path = get_astar_path(self.perception_provider.local_map,agent_location,target,full_path=False)
+                    print("Path: {}".format(self.path))
+                    if len(self.path) > 0:
+                        direction = self.path.pop(0)
+
+                else:
+                    direction = self.path.pop(0)
+
+       
 
        
 
 
                 
-        if len(direction) > 0:
-            params = [KeyValue(key="direction", value=direction)]
-            rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))
-            action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE, params=params)
+        params = [KeyValue(key="direction", value=direction)]
+        rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))
+        action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE, params=params)
 
 
 
@@ -629,7 +622,7 @@ class Attach(BehaviourBase):
 
         self._agent_name = agent_name
 
-        self._perception_provider = perception_provider
+        self.perception_provider = perception_provider
 
         self._pub_generic_action = rospy.Publisher(get_bridge_topic_prefix(agent_name) + 'generic_action', GenericAction
                                                    , queue_size=10)
@@ -637,9 +630,23 @@ class Attach(BehaviourBase):
     def do_step(self):
         
         print("{} Attach called".format(self._agent_name))
-        if self._perception_provider.closest_block:
+        direction = ''
+        if self.perception_provider.closest_block:
             
-            direction = pos_to_direction(self._perception_provider.closest_block.pos)
+            goal = self.perception_provider.goal_origin
+
+            pos_x = self.perception_provider.target_cell.x + goal.x
+            pos_y = self.perception_provider.target_cell.y + goal.y
+            agent = self.perception_provider.agent_location
+            if pos_x > agent.x:
+                direction = 'e'
+            elif pos_x < agent.x:
+                direction = 'w'
+            elif pos_y < agent.y:
+                direction = 'n'
+            elif pos_y > agent.y:
+                direction = 's'
+            # direction = pos_to_direction(self._perception_provider.closest_block.pos)
             # random_move = ['n', 's', 'e', 'w']
             # direction = random.choice(random_move)
             params = [KeyValue(key="direction", value=direction)]
@@ -687,6 +694,9 @@ class Explore_astar(BehaviourBase):
        
         self.goal_path = False
         self.path = []
+        self.opp_direction_dict = {'n':'s','s':'n','e':'w','w':'e'}
+        self.previous_direction = None
+        self.history = []
 
     
     def mh_distance(self,a,b):
@@ -694,22 +704,31 @@ class Explore_astar(BehaviourBase):
         y_dist = abs(a.y - b.y)
 
         return x_dist + y_dist
+    # def check_map_increase(self,dir,agent_map):
+
     
     def unexplored_score(self,a,b,agent_map):
         H, W = agent_map.shape
-        left = max(0,b.x - 5)
-        right = min(W-1,b.x + 5)
-        up = max(0,b.y - 5)
-        down = min(H-1,b.y + 5)
+        range_val = 4
+        left = max(0,b.x - range_val)
+        right = min(W-1,b.x + range_val)
+        up = max(0,b.y - range_val)
+        down = min(H-1,b.y + range_val)
         dist = self.mh_distance(a,b)
-        print("shape: {}, limits: {}".format(agent_map.shape,(left,right,up,down)))
+        # print("shape: {}, limits: {}".format(agent_map.shape,(left,right,up,down)))
         count = 0
+        count_obs = 0
         for i in range(left,right):
             for j in range(up, down):
                 if agent_map[j][i] == -1:
                     count += 1
+                if agent_map[j][i] == 1:
+                    count_obs += 1
         
-        return float(count) / float(dist)
+        # print("obstacle: ",count_obs)
+        # if count_obs > 3:
+        #     count = 0
+        return float(count) / (float(dist))
 
 
     def check_limits(self,limit,val):
@@ -754,13 +773,41 @@ class Explore_astar(BehaviourBase):
     def get_new_path(self,agent_map,agent_location):
 
         u_Y, u_X = np.where(agent_map == 0)
-        print("count unexplored: ",len(u_X))
+        # print("count unexplored: ",len(u_X))
 
         list_unexplored = [Position(u_X[i],u_Y[i]) for i in range(len(u_X))]
         min_array = [self.unexplored_score(agent_location,cell,agent_map) for cell in list_unexplored]
-        min_index = min_array.index(max(min_array))
-        target_unexplored_cell = list_unexplored[min_index]
-        path = get_astar_path(agent_map,agent_location,target_unexplored_cell)
+        
+        check = True
+        path = []
+        while check:
+            min_index = min_array.index(max(min_array))
+            target_unexplored_cell = list_unexplored[min_index]
+            # print("Score: {}".format(min_array[min_index]))
+            path = get_astar_path(agent_map,agent_location,target_unexplored_cell)
+            if self.previous_direction is not None:
+                # print("prev: ",self.previous_direction)
+                if target_unexplored_cell in self.history or len(path) < 1:
+                    min_array.pop(min_index)
+                    list_unexplored.pop(min_index)
+                else:
+                    opp_dir = self.opp_direction_dict[self.previous_direction]
+                    start_dir = path[0]
+                    # print(type(start_dir),type(opp_dir))
+                    if start_dir == opp_dir:
+                        min_array.pop(min_index)
+                        list_unexplored.pop(min_index)
+                
+                    
+                
+                    # print("avoid previous")
+                
+                    else:
+                        self.history.append(target_unexplored_cell)
+                        check = False
+            
+            else:
+                check = False
 
             # free_cell_Y, free_cell_X = np.where(agent_map == 0)
             # if len(free_cell_X) > 0:
@@ -793,73 +840,83 @@ class Explore_astar(BehaviourBase):
 
 
     def do_step(self):
+        # random_move = ['n','e','w','s']
+        direction = ''
+        print("{} Explore_astar called".format(self._agent_name))
+        print("Target_selected_sensor: {}".format(self.perception_provider.target_selected_sensor._value))
+        if not self.perception_provider.target_selected:
 
-        # print("{} Explore_b called".format(self._agent_name))
+            # print("dispenser visible: {}".format(self.perception_provider.dispenser_visible_sensor._value))
+            # print("#goal cells: {}".format(self.perception_provider.count_goal_cells._value))
+            print("#blocks: {}".format(self.perception_provider.sensor_dispensed_blocks._value))
 
-        # print("dispenser visible: {}".format(self.perception_provider.dispenser_visible_sensor._value))
-        # print("#goal cells: {}".format(self.perception_provider.count_goal_cells._value))
-        # print("#blocks: {}".format(self.perception_provider.closest_block_distance_sensor._value))
-
-        # self.perception_provider = 
-        agent_map = self.perception_provider.local_map
-        agent_location = self.perception_provider.agent_location
-        print("agent_loc: ({},{})".format(agent_location.x,agent_location.y))
-        random_move = ['n','e','w','s']
-        last_d = ''
-        direction = random.choice(random_move)
-        
-        if (self.perception_provider.agent.last_action == "move" and 
-            self.perception_provider.agent.last_action_result == "failed_path"):
-            path_available = False
-           
-            last_d = self.perception_provider.agent.last_action_params
-            print("{} Path planning failed {}".format(self._agent_name,last_d))
-            self.path = []
-            self.goal_path = False
-        
-        if self.path is None:
-            self.path = []
-
-        if len(self.path) > 0 and self.goal_path:
-            direction = self.path.pop(0)
+            # self.perception_provider = 
+            agent_map = self.perception_provider.local_map
+            agent_location = self.perception_provider.agent_location
+            # print("agent_loc: ({},{})".format(agent_location.x,agent_location.y))
             
-        else:
-
-            g_Y, g_X = np.where(agent_map == 7)
-            if len(g_X) > 0 and len(g_X) < 11:
-                goal_array = [Position(g_X[i],g_Y[i]) for i in range(len(g_X))]
-                dist_goal_array = [self.mh_distance(agent_location,cell) for cell in goal_array]
-                target_goal = goal_array[dist_goal_array.index(max(dist_goal_array))]
-                self.goal_path = True
-                self.path = get_astar_path(agent_map,agent_location,target_goal)
-                if len(self.path) > 0:
-                    direction = self.path.pop(0)
+            last_d = ''
             
-            elif len(self.path) > 0:
+            if self.perception_provider.agent.last_action == "move":
+                if self.perception_provider.agent.last_action_result == "failed_path":
+                    path_available = False
+                
+                    last_d = self.perception_provider.agent.last_action_params
+                    print("{} Path planning failed {}".format(self._agent_name,last_d))
+                    self.path = []
+                    self.goal_path = False
+                
+                elif self.perception_provider.agent.last_action_result == "success":
+                    self.previous_direction = self.perception_provider.agent.last_action_params[0]
+                    # print("hasKK:  ",self.opp_direction_dict[self.previous_direction])
+
+            
+            if self.path is None:
+                self.path = []
+
+            if len(self.path) > 0 and self.goal_path:
                 direction = self.path.pop(0)
-                # if self.check_obstacle_range(agent_map,agent_location,direction):
-                # self.path = self.get_new_path(agent_map,agent_location)
-                    # if self.path is None:
-                    #     print("No unexplored cells left")
-                    # else:
-                    #     direction = self.path.pop(0)
-            
-
+                
             else:
-            #Check if unexplored available
-                self.path = None
-                while self.path is None: 
-                    self.path = self.get_new_path(agent_map,agent_location)
-                # self.goal_path = False
-            
-                direction = self.path.pop(0)
-                self.goal_path = False
+
+                g_Y, g_X = np.where(agent_map == 7)
+                if len(g_X) > 0 and len(g_X) < 11:
+                    goal_array = [Position(g_X[i],g_Y[i]) for i in range(len(g_X))]
+                    dist_goal_array = [self.mh_distance(agent_location,cell) for cell in goal_array]
+                    target_goal = goal_array[dist_goal_array.index(max(dist_goal_array))]
+                    self.goal_path = True
+                    self.path = get_astar_path(agent_map,agent_location,target_goal)
+                    print(self.path)
+                    if len(self.path) > 0:
+                        direction = self.path.pop(0)
+                
+                elif len(self.path) > 0:
+                    direction = self.path.pop(0)
+                    # if self.check_obstacle_range(agent_map,agent_location,direction):
+                    # self.path = self.get_new_path(agent_map,agent_location)
+                        # if self.path is None:
+                        #     print("No unexplored cells left")
+                        # else:
+                        #     direction = self.path.pop(0)
+                
+
+                else:
+                #Check if unexplored available
+                    self.path = []
+                    while len(self.path) < 1: 
+                        self.path = self.get_new_path(agent_map,agent_location)
+                        agent_map = self.perception_provider.local_map
+                        agent_location = self.perception_provider.agent_location
+                    # self.goal_path = False
+                
+                    direction = self.path.pop(0)
+                    self.goal_path = False
             
            
         
         
         params = [KeyValue(key="direction", value=direction)]
-        print(params)
+        # print(params)
         rospy.logdebug(self._agent_name + "::" + self._name + " executing move to " + str(params))
         action_generic_simple(publisher=self._pub_generic_action, action_type=GenericAction.ACTION_TYPE_MOVE, params=params)
      
