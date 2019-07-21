@@ -24,7 +24,7 @@ Usage:
    ```
    roslaunch rhbp_workspace rhbp_agents_all.launch
    ```
-5. To run map, navigate to map folder in rhbp_workspace and run. It is necessary to run roslaunch in src folder for plotting to work
+5. To run map, navigate to folder where roslaunch runs (will be displayed on screen) /map
    ```
    python plot.py
    ```
