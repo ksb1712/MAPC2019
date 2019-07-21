@@ -54,7 +54,7 @@ class AStar(object):
     def print_cell(self,title,cell):
         print("{}: {},{},{}".format(title,cell.x,cell.y,cell.angle))
 
-    def init_grid(self,obstacles,agent_start_cell,agent_end_cell,block_start_cell = (0,0),block_end_cell = (0,0),flag=0):
+    def init_grid(self,obstacles,agent_start_cell,agent_end_cell,block_start_cell = (0,0),block_end_cell = (0,0),flag=0,allow_overflow=False):
         walls = obstacles # Tuple ((x,y),(x,y))
         for x in range(self.grid_width):
             for y in range(self.grid_height):
@@ -64,6 +64,7 @@ class AStar(object):
                     reachable = True
                 self.cells.append(Cell(x, y, reachable,0))
 
+        self.allow_overflow = allow_overflow
         agent_start = self.get_cell(agent_start_cell[0],agent_start_cell[1]) #(x,y)
         agent_end = self.get_cell(agent_end_cell[0],agent_end_cell[1]) #(x,y)
         
@@ -73,12 +74,12 @@ class AStar(object):
         
         if flag != 0:
             block_start = self.get_cell(block_start_cell[0],block_start_cell[1]) #(x,y)
-            start_angle = self.get_relative_orientation(agent_start,block_start)
+            self.start_angle = self.get_relative_orientation(agent_start,block_start)
             # print(start_angle)
             self.is_same = False
         else:
             # print("yes")
-            start_angle = 0
+            self.start_angle = 0
         if flag != 0:    
             block_end = self.get_cell(block_end_cell[0],block_end_cell[1]) #(x,y)
             end_angle = self.get_relative_orientation(agent_end,block_end)
@@ -94,16 +95,17 @@ class AStar(object):
 
         self.start = self.get_cell(agent_start_cell[0],agent_start_cell[1]) #(x,y)
         # print(start_angle)
-        self.start.angle=start_angle
+        self.start.angle=self.start_angle
         # print(self.start.angle)
-        self.update_angle(agent_start_cell[0],agent_start_cell[1],start_angle)
+        self.update_angle(agent_start_cell[0],agent_start_cell[1],self.start_angle)
         # print(self.start.angle)
         self.end = self.get_cell(agent_end_cell[0],agent_end_cell[1]) #(x,y)
         self.end.angle=end_angle
         self.update_angle(agent_end_cell[0],agent_end_cell[1],end_angle)
-
-        # print("start: {}".format((self.start.x,self.start.y,self.start.angle)))
-        # print("end: {}".format((self.end.x,self.end.y,self.end.angle)))
+        self.count = 0
+        if flag == 1:
+            print("start: {}".format((self.start.x,self.start.y,self.start.angle)))
+            print("end: {}".format((self.end.x,self.end.y,self.end.angle)))
 
         # print("start orientation: {} \n end orienteation: {}".format(self.start.angle,self.end.angle))
 
@@ -112,7 +114,7 @@ class AStar(object):
         cost = 10
         # print((cell.x,cell.y,cell.angle),(adj_cell.x,adj_cell.y,adj_cell.angle))
         if adj_cell.angle != cell.angle:
-            cost += 100
+            cost += 10
         
         return cost
 
@@ -159,7 +161,8 @@ class AStar(object):
         @param cell current cell being processed
         """
         if adj.angle != cell.angle:
-            self.update_angle(cell.x,cell.y,cell.angle)
+            if self.check_cell_similarity(cell,self.start) == False:
+                self.update_angle(cell.x,cell.y,cell.angle)
         adj.g = self.get_cost(cell,adj)
         adj.h = self.get_heuristic(adj)
         adj.parent = cell
@@ -174,7 +177,9 @@ class AStar(object):
         @returns adjacent cells list 
         """
         cells = []
-        # print("current cell: {}".format((cell.x,cell.y,cell.angle)))
+        # print("curr cell: {}".format((cell.x,cell.y,cell.angle)))
+        self.start.angle = self.start_angle
+        self.count += 1
         """
         cell limits
         """
@@ -263,7 +268,8 @@ class AStar(object):
                 temp_cell = self.get_cell(cell.x + x_length,cell.y +1 + y_length)
             else:
                 temp_cell = self.get_cell(cell.x + x_length,cell.y +1)
-            
+            # print("Update: {},{}".format(temp_cell.y,temp_cell.x))
+
             # print("reachable: ",temp_cell.reachable, temp_cell.x, temp_cell.y)
 
             if temp_cell.reachable: 
@@ -308,40 +314,53 @@ class AStar(object):
         Get the direction to take (n,s,e,w) to reach
         the next cell
         """
+
         if nxt_cell.x > cur_cell.x:
             return 'e'
-        elif nxt_cell.x < cur_cell.x:
+        if nxt_cell.x < cur_cell.x:
             return 'w'
-        elif nxt_cell.y > cur_cell.y:
+        if nxt_cell.y > cur_cell.y:
             return 's'
-        elif nxt_cell.y < cur_cell.y:
+        if nxt_cell.y < cur_cell.y:
             return 'n'
         
         if self.is_same:
             return 'n'
 
-        elif nxt_cell.angle == 0 and cur_cell.angle == 270:
-            return 'ccw'
-        elif nxt_cell.angle == 270 and cur_cell == 0:
-            return 'cw'
+        if nxt_cell.angle == 0:
+            if cur_cell.angle == 270:
+                return 'ccw'
+        if cur_cell.angle == 0:
+            if nxt_cell.angle == 270:
+                return 'cw'
         
-        elif nxt_cell.angle > cur_cell.angle:
+        if nxt_cell.angle > cur_cell.angle:
             return 'ccw'
         
-        elif nxt_cell.angle < cur_cell.angle:
+        if nxt_cell.angle < cur_cell.angle:
             return 'cw'
     
+    def check_cell_similarity(self,a,b):
+        if a.x == b.x:
+            if a.y == b.y:
+                if a.angle == b.angle:
+                    return True
+
+        return False
+
     def return_path(self,cell,full_path=False):
         # cell = self.end
         path = []
         # print(cell.x,cell.y,cell.parent.x,cell.parent.y)
         if full_path == False and cell.parent is not None:
             cell = cell.parent
-        while cell is not self.start:
+        # print("Start: {}".format((self.start.x,self.start.y,self.start.angle)))
+        while self.check_cell_similarity(cell,self.start) == False:
             if cell is not None:
+                # print 'path: cell: %d,%d,%d' % (cell.x, cell.y,cell.angle)
+            
                 path.append(self.get_direction(cell.parent,cell))
                 cell = cell.parent
-            # print 'path: cell: %d,%d' % (cell.x, cell.y)
             # path.append(self.get_direction(parent,cell))
         path.reverse()
         if path is None:
@@ -353,21 +372,32 @@ class AStar(object):
     # add starting cell to open heap queue
         heapq.heappush(self.opened, (self.start.f, self.start))
         path = []
-        count = 0
+        # count = 0
         while len(self.opened):
-            count += 1
+            
+            # count = len(self.closed)
             # pop cell from heap queue 
             f, cell = heapq.heappop(self.opened)
             # add cell to closed list so we don't process it twice
             # self.closed.add(cell)
-            self.closed.append((cell.x,cell.y,cell.angle))
+            self.closed.append(cell)
             # print self.closed
             # print("closed: {}".format(len(self.closed)))
             # if ending cell, display found path
             # print(cell.x,cell.y,cell.angle,cell.h)
-            if (cell.x == self.end.x and cell.y == self.end.y and cell.h == 0) or count > 15:
+            if (cell.x == self.end.x and cell.y == self.end.y and cell.h == 0) or self.count > 100:
                 # print("End is {}".format((cell.x,cell.y,cell.angle)))
                 path = self.return_path(cell,full_path)
+
+                if self.count > 100:
+                    print("overflow",self.allow_overflow)
+                    if self.allow_overflow:
+                        path=[]
+                # else:
+                
+                if path is None:
+                    path = []
+
                 return path
                 break
             # get adjacent cells for cell
@@ -382,8 +412,13 @@ class AStar(object):
                 # if adj_set in self.closed:
                 #     print("adj {} closed".format((adj_cell.x,adj_cell.y)))
                 
-                
-                if temp.reachable and adj_set not in self.closed:
+                status = True
+                for item in self.closed:
+                    if self.check_cell_similarity(adj_cell,item):
+                        status=False
+                        break
+
+                if temp.reachable and status:
                     # print("reachable")
                     if (adj_cell.f, adj_cell) in self.opened:
                         # if adj cell in open list, check if current path is

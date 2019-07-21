@@ -52,6 +52,7 @@ add_message_files(
   DLoc.msg
   Requirement.msg
   Task.msg
+  Reset.msg
   TaskArray.msg
 )
 

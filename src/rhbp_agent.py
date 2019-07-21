@@ -9,8 +9,8 @@ from behaviour_components.conditions import Negation, Condition, Conjunction
 from behaviour_components.goals import GoalBase
 from behaviour_components.condition_elements import Effect
 
-from agent_common.behaviours import RandomMove, Dispense, MoveToDispenser, Attach, AgentControl
-from agent_common.behaviours import Explore, Explore_better, Explore_astar
+from agent_common.behaviours import  Dispense, MoveToDispenser, Attach, AgentControl
+from agent_common.behaviours import   Explore_astar, MoveToGoal, Submit
 from agent_common.providers import PerceptionProvider
 from agent_common.agent_utils import get_bridge_topic_prefix
 
@@ -211,6 +211,35 @@ class RhbpAgent(object):
 
             attach.add_precondition(Conjunction(pre_cond4,pre_cond5))
 
+            #Move to goal once attached
+
+            reach_goal = MoveToGoal(name="reach_goal", perception_provider=self.perception_provider,
+                                                agent_name=self._agent_name,priority=10)
+            self.behaviours.append(reach_goal)
+            
+            reach_goal.add_effect(
+                            Effect(self.perception_provider.submit_count.name, indicator=+1, sensor_type=float))
+            
+            # pre_cond1 = Condition(self.perception_provider.count_goal_cells,
+            #                       ThresholdActivator(isMinimum=True, thresholdValue=12))
+            pre_cond6 = Condition(self.perception_provider.sensor_attached_blocks, 
+                                  ThresholdActivator(isMinimum=True,thresholdValue=1))
+            reach_goal.add_precondition(pre_cond6)
+        
+            
+            submit_task = Submit(name="submit_task",perception_provider=self.perception_provider,
+                                                agent_name=self._agent_name,priority=20)
+
+            self.behaviours.append(submit_task)
+
+            submit_task.add_effect(Effect(self.perception_provider.score_sensor.name,indicator=+1, sensor_type=float))
+
+            pre_cond7 = Condition(self.perception_provider.submit_sensor,
+                                  ThresholdActivator(isMinimum=True,thresholdValue=1))
+            
+            submit_task.add_precondition(pre_cond7)
+
+
             dispense_goal = GoalBase("dispense_goal",permanent=True,
                                     conditions=[Condition(self.perception_provider.sensor_dispensed_blocks, GreedyActivator())],
                                     planner_prefix=self._agent_name,
@@ -224,6 +253,18 @@ class RhbpAgent(object):
                                     priority=2)
 
             self.goals.append(attach_goal)
+
+            move_to_submit = GoalBase("move_sub_goal",permanent=True,
+                                    conditions=[Condition(self.perception_provider.submit_count, GreedyActivator())],
+                                    planner_prefix=self._agent_name,
+                                    priority=3)
+            
+            self.goals.append(move_to_submit)
+
+            submit_goal = GoalBase("submit_goal",permanent=True,
+                                    conditions=[Condition(self.perception_provider.score_sensor, GreedyActivator())],
+                                    planner_prefix=self._agent_name,
+                                    priority=4)
 
             # explorer_2 = Explore(name="explore_2", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=5)
             # self.behaviours.append(explorer)
