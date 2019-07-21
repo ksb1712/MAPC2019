@@ -398,7 +398,8 @@ class PerceptionProvider(object):
         else:
             selected_task = self.selected_task
 
-        pub.publish(selected_task) 
+        pub = rospy.Publisher("task_selected",Task,queue_size=1)
+        pub.publish(self.selected_task)  
 
     def check_if_cell_free(self,x,y):  
         H,W = self.local_map.shape
@@ -510,7 +511,6 @@ class PerceptionProvider(object):
         Update information about the closest visible dispenser
         :param dispensers: dispensers perception
         """
-        print("In distance")
         self.closest_dispenser = None
         closest_distance = sys.maxint
         if self.target_disp_selected:
@@ -740,8 +740,13 @@ class PerceptionProvider(object):
         
         self._update_map()
         
-        
-        self.local_map.dump('../map/{}_map.npy'.format(self.agent.name))
+        import os
+        cwd = os.getcwd()
+        print(cwd)
+        directory = cwd+'/map/'
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        self.local_map.dump('map/{}_map.npy'.format(self.agent.name))
        
         if self.agent.last_action == "submit":
                 if self.agent.last_action_result in ["success", "failed_target"] :
