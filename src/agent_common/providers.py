@@ -742,9 +742,9 @@ class PerceptionProvider(object):
         
         import os
         cwd = os.getcwd()
-        print(cwd)
         directory = cwd+'/map/'
         if not os.path.exists(directory):
+            print(cwd)
             os.makedirs(directory)
         self.local_map.dump('map/{}_map.npy'.format(self.agent.name))
        
