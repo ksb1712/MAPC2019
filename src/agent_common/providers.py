@@ -3,18 +3,8 @@ import rospy
 import sys
 
 from behaviour_components.sensors import Sensor
-<<<<<<< HEAD
-<<<<<<< HEAD
-from mapc_ros_bridge.msg import Position,Requirement
-from agent_common.agent_utils import relative_euclidean_distance
-=======
 from rhbp_workspace.msg import Position, Dispenser, DLoc, Task, Reset
 from agent_common.agent_utils import *
->>>>>>> clean
-=======
-from rhbp_workspace.msg import Position, Dispenser, DLoc, Task, Reset
-from agent_common.agent_utils import *
->>>>>>> clean
 import numpy as np
 from std_msgs.msg import String
 import itertools
@@ -325,10 +315,7 @@ class PerceptionProvider(object):
 
 
 
-<<<<<<< HEAD
-=======
 
->>>>>>> clean
 
 
     def update_perception(self, request_action_msg):
@@ -358,11 +345,6 @@ class PerceptionProvider(object):
 
         self._update_obstacles(request_action_msg)  # TODO this could be more sophisticated and potentially extracted like above
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> clean
         if self.origin_found:
             self.update_tasks(request_action_msg)
             self._update_global_dispenser()
@@ -371,15 +353,9 @@ class PerceptionProvider(object):
 
 
         # self.update_tasks(request_action_msg)
-<<<<<<< HEAD
-=======
-
-        self.update_submit_ready()
->>>>>>> clean
 
         self.update_submit_ready()
 
->>>>>>> clean
         self.map_status()
     def update_score(self,msg):
         score = msg.team.score
@@ -453,28 +429,6 @@ class PerceptionProvider(object):
                     return Position(x - self.goal_origin.x,y - self.goal_origin.y)
 
         return None
-<<<<<<< HEAD
-
-        #self._update_tasks(request_action_msg)
-
-        self.tasks = request_action_msg.tasks
-
-
-
-
-    def _udpate_tasks(self,request_action_msg):
-        """
-        Get current tasks
-        :param request_action_msg:
-        :return:
-        """
-        #rospy.loginfo("#####perception tasks")
-        self.tasks = request_action_msg.tasks
-
-        return self.tasks
-
-=======
->>>>>>> clean
 
     def get_goal_origin(self):
         
