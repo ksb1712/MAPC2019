@@ -1,6 +1,10 @@
 # Group 3 RHBP workspace
 
 This repository is based on the mapc_rhbp_example repo. 
+Requirements:
+python 2.7
+numpy
+matplotlib
 
 Usage:
 
@@ -16,11 +20,14 @@ Usage:
    catkin_make
    source devel/setup.bash
    ```
-4. Run the massim server and then run the package in a different terminal as 
+4. Navigate to src folder in rhbp_workspace and  run the massim server and then run the package in a different terminal as 
    ```
    roslaunch rhbp_workspace rhbp_agents_all.launch
    ```
-   
+5. To run map, navigate to map folder in rhbp_workspace and run. It is necessary to run roslaunch in src folder for plotting to work
+   ```
+   python plot.py
+   ```
 # Server setup 
 
 ### For quick visualisation, it is better to have only one team in the map.
