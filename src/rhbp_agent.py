@@ -53,11 +53,8 @@ class RhbpAgent(object):
 
         self._sim_started = False
 
-
+        #if manual player is called, do not call other behaviours
         self.manual_player = False
-
-
-
 
 
         # subscribe to MAPC bridge core simulation topics
@@ -180,8 +177,7 @@ class RhbpAgent(object):
             reach_dispenser.add_effect(
                             Effect(self.perception_provider.closest_dispenser_distance_sensor.name, indicator=-1, sensor_type=float))
             
-            # pre_cond1 = Condition(self.perception_provider.count_goal_cells,
-            #                       ThresholdActivator(isMinimum=True, thresholdValue=12))
+          
             pre_cond2 = Condition(self.perception_provider.target_dispenser_selected_sensor, 
                                   BooleanActivator(desiredValue=True))
             reach_dispenser.add_precondition(pre_cond2)
@@ -220,13 +216,13 @@ class RhbpAgent(object):
             reach_goal.add_effect(
                             Effect(self.perception_provider.submit_count.name, indicator=+1, sensor_type=float))
             
-            # pre_cond1 = Condition(self.perception_provider.count_goal_cells,
-            #                       ThresholdActivator(isMinimum=True, thresholdValue=12))
+           
             pre_cond6 = Condition(self.perception_provider.sensor_attached_blocks, 
                                   ThresholdActivator(isMinimum=True,thresholdValue=1))
             reach_goal.add_precondition(pre_cond6)
         
             
+            #Submit Task if agent has reached location
             submit_task = Submit(name="submit_task",perception_provider=self.perception_provider,
                                                 agent_name=self._agent_name,priority=20)
 
@@ -240,6 +236,7 @@ class RhbpAgent(object):
             submit_task.add_precondition(pre_cond7)
 
 
+            #Keep dispensing if possible 
             dispense_goal = GoalBase("dispense_goal",permanent=True,
                                     conditions=[Condition(self.perception_provider.sensor_dispensed_blocks, GreedyActivator())],
                                     planner_prefix=self._agent_name,
@@ -247,6 +244,7 @@ class RhbpAgent(object):
 
             self.goals.append(dispense_goal)
 
+            #Attach to dispensed blocks
             attach_goal = GoalBase("attach_goal",permanent=True,
                                     conditions=[Condition(self.perception_provider.sensor_attached_blocks, GreedyActivator())],
                                     planner_prefix=self._agent_name,
@@ -254,30 +252,12 @@ class RhbpAgent(object):
 
             self.goals.append(attach_goal)
 
-            move_to_submit = GoalBase("move_sub_goal",permanent=True,
-                                    conditions=[Condition(self.perception_provider.submit_count, GreedyActivator())],
-                                    planner_prefix=self._agent_name,
-                                    priority=3)
-            
-            self.goals.append(move_to_submit)
-
+            #Primary goal to get more points
             submit_goal = GoalBase("submit_goal",permanent=True,
                                     conditions=[Condition(self.perception_provider.score_sensor, GreedyActivator())],
                                     planner_prefix=self._agent_name,
                                     priority=4)
 
-            # explorer_2 = Explore(name="explore_2", perception_provider=self.perception_provider, agent_name=self._agent_name,priority=5)
-            # self.behaviours.append(explorer)
-            # explorer.add_effect(
-            #     Effect(self.perception_provider.count_goal_cells.name, indicator=+1, sensor_type=float))
-            
-
-
-            # Our simple goal is to create more and more blocks
-            # dispense_goal = GoalBase("dispensing", permanent=True,
-            #                         conditions=[Condition(self.perception_provider.number_of_blocks_sensor, GreedyActivator())],
-            #                         planner_prefix=self._agent_name)
-            # self.goals.append(dispense_goal)
 
 
 if __name__ == '__main__':
